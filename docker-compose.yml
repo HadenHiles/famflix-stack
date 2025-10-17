@@ -1,5 +1,3 @@
-version: "3.9"
-
 networks:
   media_net:
     driver: bridge
@@ -57,7 +55,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sabnzbd:/config
-      - ./downloads:/downloads           # completed path
+      - ./downloads:/downloads                   # SAB Completed: /downloads/complete
       - ./downloads/incomplete:/incomplete-downloads  # temp path
     restart: unless-stopped
 
@@ -117,6 +115,41 @@ services:
     depends_on: [ plex, sonarr, radarr ]
     restart: unless-stopped
     networks: [ media_net ]
+
+  unmanic:
+    image: josh5/unmanic:latest
+    container_name: unmanic
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/unmanic:/config
+      - ./media/movies:/library/movies
+      - ./media/tv:/library/tv
+      - ./downloads/complete:/library/watch
+    ports:
+      - 8888:8888
+    networks:
+      - media_net
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/bazarr:/config
+      - ./media/movies:/movies
+      - ./media/tv:/tv
+    ports:
+      - 6767:6767
+    networks:
+      - media_net
+    restart: unless-stopped
 
   plex:
     image: lscr.io/linuxserver/plex:latest
