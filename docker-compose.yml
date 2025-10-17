@@ -1,0 +1,142 @@
+version: "3.9"
+
+networks:
+  media_net:
+    driver: bridge
+
+services:
+  pia:
+    image: ghcr.io/thrnz/docker-wireguard-pia:latest
+    container_name: pia
+    cap_add: [ NET_ADMIN ]
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    environment:
+      - USER=${PIA_USER}
+      - PASS=${PIA_PASS}
+      - LOC=ca_ontario
+      - PORT_FORWARDING=1
+      - VPNDNS=1.1.1.1,9.9.9.9
+      - ACTIVE_HEALTHCHECKS=1
+      - LOCAL_NETWORK=192.168.0.0/16
+    volumes:
+      - ./pia:/config
+      - /lib/modules:/lib/modules:ro
+    # Expose clients behind VPN via host ports:
+    ports:
+      - "8082:8082/tcp"   # qB Web UI (qbittorrent WEBUI_PORT)
+      - "6881:6881/tcp"   # qB bittorrent
+      - "6881:6881/udp"
+      - "8080:8080/tcp"   # SAB UI
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:pia"
+    depends_on: [ pia ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8082
+    volumes:
+      - ./configs/qbittorrent:/config
+      - ./downloads:/downloads           # expect /downloads/{incomplete,complete}
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    network_mode: "service:pia"
+    depends_on: [ pia ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/sabnzbd:/config
+      - ./downloads:/downloads           # completed path
+      - ./downloads/incomplete:/incomplete-downloads  # temp path
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    ports: [ "9696:9696" ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/prowlarr:/config
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    ports: [ "8989:8989" ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/sonarr:/config
+      - ./media:/data/media
+      - ./downloads:/downloads
+    depends_on: [ prowlarr ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    ports: [ "7878:7878" ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/radarr:/config
+      - ./media:/data/media
+      - ./downloads:/downloads
+    depends_on: [ prowlarr ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr
+    container_name: jellyseerr
+    ports: [ "5055:5055" ]
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ./configs/jellyseerr:/app/config
+    depends_on: [ plex, sonarr, radarr ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    ports:
+      - "32400:32400/tcp"
+      - "1900:1900/udp"
+      - "32469:32469/tcp"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - VERSION=docker
+    volumes:
+      - ./configs/plex:/config
+      - ./media:/data/media
+      - ./downloads:/data/downloads
+    restart: unless-stopped
+    networks: [ media_net ]
