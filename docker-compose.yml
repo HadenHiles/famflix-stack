@@ -18,11 +18,10 @@ services:
       - ACTIVE_HEALTHCHECKS=1
       - LOCAL_NETWORK=192.168.0.0/16
     volumes:
-      - ./pia:/config
+      - ${BASE}/pia:/config
       - /lib/modules:/lib/modules:ro
-    # Expose clients behind VPN via host ports:
     ports:
-      - "8082:8082/tcp"   # qB Web UI (qbittorrent WEBUI_PORT)
+      - "8082:8082/tcp"   # qB Web UI
       - "6881:6881/tcp"   # qB bittorrent
       - "6881:6881/udp"
       - "8080:8080/tcp"   # SAB UI
@@ -40,8 +39,8 @@ services:
       - TZ=${TZ}
       - WEBUI_PORT=8082
     volumes:
-      - ./configs/qbittorrent:/config
-      - ./downloads:/downloads           # expect /downloads/{incomplete,complete}
+      - ${BASE}/configs/qbittorrent:/config
+      - ${BASE}/downloads:/downloads
     restart: unless-stopped
 
   sabnzbd:
@@ -54,9 +53,9 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/sabnzbd:/config
-      - ./downloads:/downloads                   # SAB Completed: /downloads/complete
-      - ./downloads/incomplete:/incomplete-downloads  # temp path
+      - ${BASE}/configs/sabnzbd:/config
+      - ${BASE}/downloads:/downloads
+      - ${BASE}/downloads/incomplete:/incomplete-downloads
     restart: unless-stopped
 
   prowlarr:
@@ -68,7 +67,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/prowlarr:/config
+      - ${BASE}/configs/prowlarr:/config
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -81,9 +80,9 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/sonarr:/config
-      - ./media:/data/media
-      - ./downloads:/downloads
+      - ${BASE}/configs/sonarr:/config
+      - ${BASE}/media:/data/media
+      - ${BASE}/downloads:/downloads
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -97,9 +96,9 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/radarr:/config
-      - ./media:/data/media
-      - ./downloads:/downloads
+      - ${BASE}/configs/radarr:/config
+      - ${BASE}/media:/data/media
+      - ${BASE}/downloads:/downloads
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -111,7 +110,7 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ./configs/jellyseerr:/app/config
+      - ${BASE}/configs/jellyseerr:/app/config
     depends_on: [ plex, sonarr, radarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -124,14 +123,13 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/unmanic:/config
-      - ./media/movies:/library/movies
-      - ./media/tv:/library/tv
-      - ./downloads/complete:/library/watch
+      - ${BASE}/configs/unmanic:/config
+      - ${BASE}/media/movies:/library/movies
+      - ${BASE}/media/tv:/library/tv
+      - ${BASE}/downloads/complete:/library/watch
     ports:
       - 8888:8888
-    networks:
-      - media_net
+    networks: [ media_net ]
     restart: unless-stopped
 
   bazarr:
@@ -142,13 +140,12 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/bazarr:/config
-      - ./media/movies:/movies
-      - ./media/tv:/tv
+      - ${BASE}/configs/bazarr:/config
+      - ${BASE}/media/movies:/movies
+      - ${BASE}/media/tv:/tv
     ports:
       - 6767:6767
-    networks:
-      - media_net
+    networks: [ media_net ]
     restart: unless-stopped
 
   plex:
@@ -168,8 +165,8 @@ services:
       - TZ=${TZ}
       - VERSION=docker
     volumes:
-      - ./configs/plex:/config
-      - ./media:/data/media
-      - ./downloads:/data/downloads
+      - ${BASE}/configs/plex:/config
+      - ${BASE}/media:/data/media
+      - ${BASE}/downloads:/data/downloads
     restart: unless-stopped
     networks: [ media_net ]
