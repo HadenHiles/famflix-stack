@@ -148,6 +148,22 @@ services:
     networks: [ media_net ]
     restart: unless-stopped
 
+  tautulli:
+    image: lscr.io/linuxserver/tautulli:latest
+    container_name: tautulli
+    ports: [ "8181:8181" ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ./configs/tautulli:/config
+      # Mount Plex logs read-only so Tautulli can parse activity
+      - ./configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro
+    depends_on: [ plex ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
