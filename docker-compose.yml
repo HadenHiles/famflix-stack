@@ -180,6 +180,26 @@ services:
       - "6246:6246"
     restart: unless-stopped
     networks: [ media_net ]
+  
+  plex_watchlist_requester:
+    image: randomnick/plex-watchlist-requester:latest
+    container_name: plex_watchlist_requester
+    environment:
+      # - PLEX_USERNAME=${PLEX_USERNAME}
+      # - PLEX_PASSWORD=${PLEX_PASSWORD}
+      # OR instead of username/password, you can use:
+      - PLEX_TOKEN=${PLEX_CLAIM} # get it from https://www.plex.tv/claim/
+      - JELLYSEERR_API_KEY=${JELLYSEERR_API_KEY}
+      - JELLYSEERR_URL=http://jellyseerr:5055
+      - INCLUDE_USERS=true
+      - REQUEST_TV=true
+      - REQUEST_MOVIES=true
+      - SKIP_EXISTING=true
+      - CRON_SCHEDULE=*/5 * * * *  # run every 30 minutes
+      - LOG_LEVEL=info
+    networks: [ media_net ]
+    restart: unless-stopped
+
 
   plex:
     image: lscr.io/linuxserver/plex:latest
