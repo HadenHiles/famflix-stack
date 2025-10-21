@@ -40,7 +40,7 @@ services:
       - WEBUI_PORT=8082
     volumes:
       - ./configs/qbittorrent:/config
-      - ./downloads:/downloads
+      - ${MEDIA_BASE}:/downloads
     restart: unless-stopped
 
   sabnzbd:
@@ -54,8 +54,8 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sabnzbd:/config
-      - ./downloads:/downloads
-      - ./downloads/incomplete:/incomplete-downloads
+      - ${MEDIA_BASE}:/downloads
+      - ${MEDIA_BASE}/incomplete:/incomplete-downloads
     restart: unless-stopped
 
   prowlarr:
@@ -82,7 +82,7 @@ services:
     volumes:
       - ./configs/sonarr:/config
       - ${MEDIA_BASE}/media:/data/media
-      - ./downloads:/downloads
+      - ${MEDIA_BASE}:/downloads
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -98,7 +98,7 @@ services:
     volumes:
       - ./configs/radarr:/config
       - ${MEDIA_BASE}/media:/data/media
-      - ./downloads:/downloads
+      - ${MEDIA_BASE}:/downloads
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -126,7 +126,7 @@ services:
       - ./configs/unmanic:/config
       - ${MEDIA_BASE}/media/movies:/library/movies
       - ${MEDIA_BASE}/media/tv:/library/tv
-      - ./downloads/complete:/library/watch
+      - ${MEDIA_BASE}/complete:/library/watch
     ports:
       - 8888:8888
     networks: [ media_net ]
@@ -200,6 +200,6 @@ services:
     volumes:
       - ./configs/plex:/config
       - ${MEDIA_BASE}/media:/data/media
-      - ./downloads:/data/downloads
+      - ${MEDIA_BASE}:/data/downloads
     restart: unless-stopped
     networks: [ media_net ]
