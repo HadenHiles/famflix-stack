@@ -104,7 +104,7 @@ services:
     networks: [ media_net ]
 
   jellyseerr:
-    image: fallenbagel/jellyseerr:preview
+    image: fallenbagel/jellyseerr:develop
     container_name: jellyseerr
     ports: [ "5055:5055" ]
     environment:
