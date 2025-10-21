@@ -201,7 +201,6 @@ services:
     volumes:
       - ./configs/plex:/config
       - ${MEDIA_BASE}/media:/data/media
-      - ${MEDIA_BASE}/downloads:/data/downloads
     restart: unless-stopped
     networks: [ media_net ]
 
