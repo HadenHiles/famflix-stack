@@ -2,3 +2,6 @@
 !docker-compose.yml
 !.example.env
 !.gitignore
+!services
+!services/*
+!services/*/*
