@@ -104,7 +104,7 @@ services:
     networks: [ media_net ]
 
   jellyseerr:
-    image: fallenbagel/jellyseerr
+    image: fallenbagel/jellyseerr:preview
     container_name: jellyseerr
     ports: [ "5055:5055" ]
     environment:
@@ -161,6 +161,23 @@ services:
       # Mount Plex logs read-only so Tautulli can parse activity
       - ./configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro
     depends_on: [ plex ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
+  maintainerr:
+    image: ghcr.io/jorenn92/maintainerr:main
+    container_name: maintainerr
+    # Optional: run as your media user for clean permissions
+    user: "${PUID}:${PGID}"
+    environment:
+      - TZ=${TZ}
+      # - UI_PORT=6246      # change only if 6246 conflicts
+      # - API_PORT=3001     # change only if needed
+      # - BASE_PATH=/maint  # only if reverse proxying at a subfolder
+    volumes:
+      - ./configs/maintainerr:/opt/data
+    ports:
+      - "6246:6246"
     restart: unless-stopped
     networks: [ media_net ]
 
