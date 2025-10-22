@@ -127,6 +127,8 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      # Increase probe size and duration for our larger movie files
+      - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
       - ./configs/unmanic:/config
       - "${MEDIA_BASE}/media/movies:/library/movies"
