@@ -211,11 +211,21 @@ services:
     container_name: cloudflare-ddns
     restart: unless-stopped
     environment:
-      - API_KEY=${CLOUDFLARE_API_KEY}
+      - API_KEY=${CF_API_KEY}
       - ZONE=famflix.live
       - SUBDOMAIN=plex
       - PROXIED=false     # Keep Plex direct (no orange cloud)
       - TTL=120           # optional; 2-minute TTL for quick updates
+  
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run jellyseerr
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    networks: [ media_net ]
+
 
   seedlink:
     image: python:3.12
