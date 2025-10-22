@@ -206,6 +206,43 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
+  cloudflare-ddns:
+    image: oznu/cloudflare-ddns:latest
+    container_name: cloudflare-ddns
+    restart: unless-stopped
+    environment:
+      - API_KEY=${CLOUDFLARE_API_KEY}
+      - ZONE=famflix.live
+      - SUBDOMAIN=plex
+      - PROXIED=false     # Keep Plex direct (no orange cloud)
+      - TTL=120           # optional; 2-minute TTL for quick updates
+
+  seedlink:
+    image: python:3.12
+    container_name: seedlink
+    networks: [ media_net ]
+    depends_on: [ qbittorrent, sabnzbd ]
+    environment:
+      - QBIT_HOST=http://qbittorrent:8082
+      - QBIT_USER=${QBIT_USER}
+      - QBIT_PASS=${QBIT_PASS}
+      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
+      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - MILKIE_COOKIE=${MILKIE_COOKIE}
+      - MAX_PEERS=${MAX_PEERS}
+      - STOP_RATIO=${STOP_RATIO}
+      - TZ=${TZ}
+      - SAB_COMPLETE_DIR=/downloads/complete
+    volumes:
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - ./configs/seedlink:/app
+      - ./configs/seedlink/logs:/logs   # optional
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+
+
   # rolling_window:
   #   build: ./services/rolling-window
   #   container_name: rolling_window
