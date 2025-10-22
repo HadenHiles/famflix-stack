@@ -21,10 +21,10 @@ services:
       - ./pia:/config
       - /lib/modules:/lib/modules:ro
     ports:
-      - "8082:8082/tcp"
+      - "8082:8082/tcp"    # qBittorrent WebUI (via qbittorrent network_mode: service:pia)
       - "6881:6881/tcp"
       - "6881:6881/udp"
-      - "8080:8080/tcp"
+      - "8080:8080/tcp"    # SABnzbd WebUI (via sabnzbd network_mode: service:pia)
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -40,8 +40,9 @@ services:
       - WEBUI_PORT=8082
     volumes:
       - ./configs/qbittorrent:/config
-      - ${MEDIA_BASE}/complete:/downloads/complete
-      - ${MEDIA_BASE}/incomplete:/downloads/incomplete
+      # IMPORTANT: map host F:/famflix/complete -> /downloads/complete, and incomplete -> /downloads/incomplete
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
 
   sabnzbd:
@@ -55,8 +56,8 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sabnzbd:/config
-      - ${MEDIA_BASE}/complete:/downloads/complete
-      - ${MEDIA_BASE}/incomplete:/downloads/incomplete
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
 
   prowlarr:
@@ -82,8 +83,10 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sonarr:/config
-      - ${MEDIA_BASE}/media:/data/media
-      - ${MEDIA_BASE}/complete:/downloads
+      - "${MEDIA_BASE}/media:/data/media"
+      # Match qBittorrent/SAB EXACTLY so Sonarr sees the same internal paths
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -98,8 +101,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/radarr:/config
-      - ${MEDIA_BASE}/media:/data/media
-      - ${MEDIA_BASE}/complete:/downloads
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -125,9 +129,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/unmanic:/config
-      - ${MEDIA_BASE}/media/movies:/library/movies
-      - ${MEDIA_BASE}/media/tv:/library/tv
-      - ${MEDIA_BASE}/complete:/library/watch
+      - "${MEDIA_BASE}/media/movies:/library/movies"
+      - "${MEDIA_BASE}/media/tv:/library/tv"
+      - "${MEDIA_BASE}/complete:/library/watch"
     ports:
       - 8888:8888
     networks: [ media_net ]
@@ -142,8 +146,8 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
-      - ${MEDIA_BASE}/media/movies:/movies
-      - ${MEDIA_BASE}/media/tv:/tv
+      - "${MEDIA_BASE}/media/movies:/movies"
+      - "${MEDIA_BASE}/media/tv:/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -168,13 +172,9 @@ services:
   maintainerr:
     image: ghcr.io/jorenn92/maintainerr:main
     container_name: maintainerr
-    # Optional: run as your media user for clean permissions
     user: "${PUID}:${PGID}"
     environment:
       - TZ=${TZ}
-      # - UI_PORT=6246      # change only if 6246 conflicts
-      # - API_PORT=3001     # change only if needed
-      # - BASE_PATH=/maint  # only if reverse proxying at a subfolder
     volumes:
       - ./configs/maintainerr:/opt/data
     ports:
@@ -200,7 +200,7 @@ services:
       - VERSION=docker
     volumes:
       - ./configs/plex:/config
-      - ${MEDIA_BASE}/media:/data/media
+      - "${MEDIA_BASE}/media:/data/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -212,9 +212,8 @@ services:
   #     - SONARR_API_KEY=${SONARR_API_KEY}
   #     - TAUTULLI_URL=http://tautulli:8181
   #     - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
-  #     - FUTURE_WINDOW=4        # episodes ahead
-  #     - RETAIN_DAYS=120        # keep watched for 120d
+  #     - FUTURE_WINDOW=4
+  #     - RETAIN_DAYS=120
   #     - ROLLING_INTERVAL_HOURS=6
   #   restart: unless-stopped
   #   networks: [ media_net ]
-
