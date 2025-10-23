@@ -199,7 +199,14 @@ def set_torrent_limits(title):
 # ============================================================
 
 def main():
-    title, path, category = detect_sab_job()
+    title, path, category = (None, None, None)
+
+    # Only detect SAB job if no CLI title provided
+    if not args.title:
+        title, path, category = detect_sab_job()
+    else:
+        print("🧰 CLI mode detected (skipping SAB hook auto-detect).")
+
 
     if not title:
         print("🧰 CLI mode detected (ignoring SAB hook detection).")
