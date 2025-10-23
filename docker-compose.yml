@@ -90,10 +90,22 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - QBIT_HOST=http://localhost:8082
+      - QBIT_USER=${QBIT_USER}
+      - QBIT_PASS=${QBIT_PASS}
+      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
+      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
+      - PROWLARR_URL=http://prowlarr.local:9696
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - MILKIE_COOKIE=${MILKIE_COOKIE}
+      - MAX_PEERS=${MAX_PEERS}
+      - STOP_RATIO=${STOP_RATIO}
+      - SAB_COMPLETE_DIR=/downloads/complete
     volumes:
       - ./configs/sabnzbd:/config
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
+      - ./configs/seedlink/scripts:/downloads/scripts:ro
     restart: unless-stopped
 
   # NEW: Proxy to expose SABnzbd from PIA network to media_net
@@ -143,7 +155,10 @@ services:
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
-    networks: [ media_net ]
+    networks: 
+      media_net:
+        aliases:
+          - prowlarr.local
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -295,26 +310,26 @@ services:
       - ./caddy/data:/data
       - ./caddy/config:/config
 
-  # seedlink:
-  #   image: python:3.12
-  #   container_name: seedlink
-  #   networks: [ media_net ]
-  #   depends_on: [ qbittorrent, sabnzbd ]
-  #   environment:
-  #     - QBIT_HOST=http://qbittorrent:8082
-  #     - QBIT_USER=${QBIT_USER}
-  #     - QBIT_PASS=${QBIT_PASS}
-  #     - TORRENTLEECH_UID=${TORRENTLEECH_UID}
-  #     - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-  #     - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-  #     - MILKIE_COOKIE=${MILKIE_COOKIE}
-  #     - MAX_PEERS=${MAX_PEERS}
-  #     - STOP_RATIO=${STOP_RATIO}
-  #     - TZ=${TZ}
-  #     - SAB_COMPLETE_DIR=/downloads/complete
-  #   volumes:
-  #     - "${MEDIA_BASE}/complete:/downloads/complete"
-  #     - ./configs/seedlink:/app
-  #     - ./configs/seedlink/logs:/logs
-  #   command: ["sleep", "infinity"]
-  #   restart: unless-stopped
+  seedlink:
+    image: python:3.12
+    container_name: seedlink
+    networks: [ media_net ]
+    depends_on: [ qbittorrent, sabnzbd ]
+    environment:
+      - QBIT_HOST=http://qbittorrent:8082
+      - QBIT_USER=${QBIT_USER}
+      - QBIT_PASS=${QBIT_PASS}
+      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
+      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - MILKIE_COOKIE=${MILKIE_COOKIE}
+      - MAX_PEERS=${MAX_PEERS}
+      - STOP_RATIO=${STOP_RATIO}
+      - TZ=${TZ}
+      - SAB_COMPLETE_DIR=/downloads/complete
+    volumes:
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - ./configs/seedlink:/app
+      - ./configs/seedlink/logs:/logs
+    command: ["sleep", "infinity"]
+    restart: unless-stopped

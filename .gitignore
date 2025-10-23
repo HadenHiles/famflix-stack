@@ -6,3 +6,7 @@
 !caddy
 !scripts
 !scripts/*
+!configs
+!configs/seedlink
+!configs/seedlink/scripts
+!configs/seedlink/scripts/*
