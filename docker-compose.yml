@@ -21,10 +21,10 @@ services:
       - ./pia:/config
       - /lib/modules:/lib/modules:ro
     ports:
-      - "8082:8082/tcp"    # qBittorrent WebUI (via qbittorrent network_mode: service:pia)
+      - "8082:8082/tcp"    # qBittorrent WebUI (via proxy)
+      - "8080:8080/tcp"    # SABnzbd WebUI (via proxy)
       - "6881:6881/tcp"
       - "6881:6881/udp"
-      - "8080:8080/tcp"    # SABnzbd WebUI (via sabnzbd network_mode: service:pia)
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -40,10 +40,28 @@ services:
       - WEBUI_PORT=8082
     volumes:
       - ./configs/qbittorrent:/config
-      # IMPORTANT: map host F:/famflix/complete -> /downloads/complete, and incomplete -> /downloads/incomplete
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
+
+  # NEW: Proxy to expose qBittorrent from PIA network to media_net
+  qbit-proxy:
+    image: nginx:alpine
+    container_name: qbit-proxy
+    networks: [ media_net ]
+    depends_on: [ qbittorrent ]
+    restart: unless-stopped
+    command: >
+      sh -c "echo '
+        events {}
+        http {
+          server {
+            listen 8082;
+            location / {
+              proxy_pass http://qbittorrent:8082;
+            }
+          }
+        }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
@@ -59,6 +77,25 @@ services:
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
+
+  # NEW: Proxy to expose SABnzbd from PIA network to media_net
+  sab-proxy:
+    image: nginx:alpine
+    container_name: sab-proxy
+    networks: [ media_net ]
+    depends_on: [ sabnzbd ]
+    restart: unless-stopped
+    command: >
+      sh -c "echo '
+        events {}
+        http {
+          server {
+            listen 8080;
+            location / {
+              proxy_pass http://sabnzbd:8080;
+            }
+          }
+        }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -84,7 +121,6 @@ services:
     volumes:
       - ./configs/sonarr:/config
       - "${MEDIA_BASE}/media:/data/media"
-      # Match qBittorrent/SAB EXACTLY so Sonarr sees the same internal paths
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
@@ -127,7 +163,6 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      # Increase probe size and duration for our larger movie files
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
       - ./configs/unmanic:/config
@@ -165,7 +200,6 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/tautulli:/config
-      # Mount Plex logs read-only so Tautulli can parse activity
       - ./configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro
     depends_on: [ plex ]
     restart: unless-stopped
@@ -214,9 +248,9 @@ services:
       - API_KEY=${CF_API_KEY}
       - ZONE=famflix.live
       - SUBDOMAIN=plex
-      - PROXIED=false     # Keep Plex direct (no orange cloud)
-      - TTL=120           # optional; 2-minute TTL for quick updates
-  
+      - PROXIED=false
+      - TTL=120
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
@@ -236,51 +270,33 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      # optional email for Let's Encrypt notifications
       - ACME_AGREE=true
       - EMAIL=hadenhiles@gmail.com
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/data:/data            # persists TLS certs
-      - ./caddy/config:/config        # persists Caddy settings
+      - ./caddy/data:/data
+      - ./caddy/config:/config
 
-
-  seedlink:
-    image: python:3.12
-    container_name: seedlink
-    networks: [ media_net ]
-    depends_on: [ qbittorrent, sabnzbd ]
-    environment:
-      - QBIT_HOST=http://qbittorrent:8082
-      - QBIT_USER=${QBIT_USER}
-      - QBIT_PASS=${QBIT_PASS}
-      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
-      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-      - MILKIE_COOKIE=${MILKIE_COOKIE}
-      - MAX_PEERS=${MAX_PEERS}
-      - STOP_RATIO=${STOP_RATIO}
-      - TZ=${TZ}
-      - SAB_COMPLETE_DIR=/downloads/complete
-    volumes:
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - ./configs/seedlink:/app
-      - ./configs/seedlink/logs:/logs   # optional
-    command: ["sleep", "infinity"]
-    restart: unless-stopped
-
-
-
-  # rolling_window:
-  #   build: ./services/rolling-window
-  #   container_name: rolling_window
-  #   environment:
-  #     - SONARR_URL=http://sonarr:8989
-  #     - SONARR_API_KEY=${SONARR_API_KEY}
-  #     - TAUTULLI_URL=http://tautulli:8181
-  #     - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
-  #     - FUTURE_WINDOW=4
-  #     - RETAIN_DAYS=120
-  #     - ROLLING_INTERVAL_HOURS=6
-  #   restart: unless-stopped
+  # seedlink:
+  #   image: python:3.12
+  #   container_name: seedlink
   #   networks: [ media_net ]
+  #   depends_on: [ qbittorrent, sabnzbd ]
+  #   environment:
+  #     - QBIT_HOST=http://qbittorrent:8082
+  #     - QBIT_USER=${QBIT_USER}
+  #     - QBIT_PASS=${QBIT_PASS}
+  #     - TORRENTLEECH_UID=${TORRENTLEECH_UID}
+  #     - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
+  #     - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+  #     - MILKIE_COOKIE=${MILKIE_COOKIE}
+  #     - MAX_PEERS=${MAX_PEERS}
+  #     - STOP_RATIO=${STOP_RATIO}
+  #     - TZ=${TZ}
+  #     - SAB_COMPLETE_DIR=/downloads/complete
+  #   volumes:
+  #     - "${MEDIA_BASE}/complete:/downloads/complete"
+  #     - ./configs/seedlink:/app
+  #     - ./configs/seedlink/logs:/logs
+  #   command: ["sleep", "infinity"]
+  #   restart: unless-stopped

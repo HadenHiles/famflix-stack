@@ -1,10 +1,98 @@
-# --- Plex ---
+# -------------------------------------------------
+# FamFlix Media Stack — Local (HTTP) + Public (HTTPS)
+# -------------------------------------------------
+# .local routes -> HTTP only (no TLS)
+# .famflix.live routes -> HTTPS via Let's Encrypt
+# -------------------------------------------------
+{
+	email hadenhiles@gmail.com
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+	auto_https disable_redirects
+}
+
+# ---------- LOCAL ROUTES (HTTP ONLY) ----------
+
+# Plex
+http://plex.local {
+	@root path /
+	redir @root /web
+	reverse_proxy plex:32400 {
+		flush_interval -1
+	}
+}
+
+# qBittorrent
+http://qbittorrent.local {
+	reverse_proxy qbit-proxy:8082
+}
+
+# SABnzbd
+http://sabnzbd.local {
+	reverse_proxy sab-proxy:8080
+}
+
+# Prowlarr
+http://prowlarr.local {
+	reverse_proxy prowlarr:9696
+}
+
+# Sonarr
+http://sonarr.local {
+	reverse_proxy sonarr:8989
+}
+
+# Radarr
+http://radarr.local {
+	reverse_proxy radarr:7878
+}
+
+# Jellyseerr
+http://jellyseerr.local {
+	reverse_proxy jellyseerr:5055
+}
+
+# Unmanic
+http://unmanic.local {
+	reverse_proxy unmanic:8888
+}
+
+# Bazarr
+http://bazarr.local {
+	reverse_proxy bazarr:6767
+}
+
+# Tautulli
+http://tautulli.local {
+	reverse_proxy tautulli:8181
+}
+
+# Maintainerr
+http://maintainerr.local {
+	reverse_proxy maintainerr:6246
+}
+
+# ---------- PUBLIC ROUTES (HTTPS ENABLED) ----------
 plex.famflix.live {
-    encode gzip
-    reverse_proxy plex:32400 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
+    encode zstd gzip
+
+    @root path /
+    redir @root /web
+
+    reverse_proxy http://plex:32400 {
+        header_up Host plex.famflix.live
+        header_up X-Real-IP {http.request.remote}
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host plex.famflix.live
+        flush_interval -1
     }
+}
+
+jellyseerr.famflix.live {
+	tls internal
+	reverse_proxy jellyseerr:5055
+	encode zstd gzip
+}
+
+famflix.live {
+	redir https://plex.famflix.live
 }
