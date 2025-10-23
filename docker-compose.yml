@@ -90,12 +90,12 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - QBIT_HOST=http://localhost:8082
+      - QBIT_HOST=http://qbit-proxy:8082
       - QBIT_USER=${QBIT_USER}
       - QBIT_PASS=${QBIT_PASS}
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-      - PROWLARR_URL=http://prowlarr.local:9696
+      - PROWLARR_URL=http://172.20.0.3:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
@@ -155,10 +155,7 @@ services:
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
-    networks: 
-      media_net:
-        aliases:
-          - prowlarr.local
+    networks: [ media_net ]
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -316,20 +313,20 @@ services:
     networks: [ media_net ]
     depends_on: [ qbittorrent, sabnzbd ]
     environment:
-      - QBIT_HOST=http://qbittorrent:8082
+      - QBIT_HOST=http://qbit-proxy:8082
       - QBIT_USER=${QBIT_USER}
       - QBIT_PASS=${QBIT_PASS}
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
+      - PROWLARR_URL=http://172.20.0.3:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
-      - TZ=${TZ}
-      - SAB_COMPLETE_DIR=/downloads/complete
     volumes:
       - "${MEDIA_BASE}/complete:/downloads/complete"
-      - ./configs/seedlink:/app
+      - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
-    command: ["sleep", "infinity"]
+    command: bash -c "pip install requests urllib3 && sleep infinity"
     restart: unless-stopped
+
