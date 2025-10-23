@@ -58,7 +58,7 @@ services:
           server {
             listen 8082;
             location / {
-              proxy_pass http://qbittorrent:8082;
+              proxy_pass http://pia:8082;
             }
           }
         }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
@@ -92,7 +92,7 @@ services:
           server {
             listen 8080;
             location / {
-              proxy_pass http://sabnzbd:8080;
+              proxy_pass http://pia:8080;
             }
           }
         }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
