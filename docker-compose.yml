@@ -325,6 +325,7 @@ services:
       - STOP_RATIO=${STOP_RATIO}
     volumes:
       - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/media:/data/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     command: bash -c "pip install requests urllib3 && sleep infinity"

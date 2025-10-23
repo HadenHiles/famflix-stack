@@ -1,11 +1,10 @@
-import os, re, time, sys, requests, argparse
+import os, re, time, sys, requests, argparse, io, bencodepy
 from urllib.parse import quote
 
 # ============================================================
 # ARGUMENT / ENVIRONMENT HANDLING
 # ============================================================
 
-# Parse CLI args (manual or wrapper use)
 parser = argparse.ArgumentParser()
 parser.add_argument("--title")
 parser.add_argument("--dir")
@@ -13,41 +12,25 @@ parser.add_argument("--cat")
 args, _ = parser.parse_known_args()
 
 def detect_sab_job():
-    """
-    Detect SABnzbd post-processing invocation:
-      argv[1] = finaldir
-      argv[2] = nzbname
-      argv[3] = jobname
-      argv[4] = category
-      argv[5] = group (e.g., alt.binaries.movies.x264)
-      argv[6] = status
-    We **skip** detection if any --flag is present, because that's a manual/CLI run.
-    """
-    if any(a.startswith("--") for a in sys.argv[1:]):
-        return None, None, None
-
+    """Detect SABnzbd hook arguments if run as a post-processing script."""
     if len(sys.argv) >= 7:
         finaldir = sys.argv[1]
-        nzbname  = sys.argv[2]
-        jobname  = sys.argv[3]
+        nzbname = sys.argv[2]
+        jobname = sys.argv[3]
         category = sys.argv[4]
-        group    = sys.argv[5]
-        status   = sys.argv[6]
-
+        group = sys.argv[5]
+        status = sys.argv[6]
         print(f"📦 SAB Hook detected: job={jobname}, status={status}, cat={category}")
 
-        # If SAB category is empty, infer from newsgroup
-        if (not category) and group:
-            gl = group.lower()
-            if "movie" in gl:
+        if not category and group:
+            if "movies" in group.lower():
                 category = "movies"
-            elif "tv" in gl or "series" in gl or "episode" in gl:
+            elif "tv" in group.lower():
                 category = "tv"
             else:
                 category = group
 
         return jobname, finaldir, category
-
     return None, None, None
 
 
@@ -55,25 +38,23 @@ def detect_sab_job():
 # ENVIRONMENT VARIABLES / DEFAULTS
 # ============================================================
 
-QBIT_HOST  = os.getenv("QBIT_HOST", "http://qbit-proxy:8082")
-QBIT_USER  = os.getenv("QBIT_USER", "admin")
-QBIT_PASS  = os.getenv("QBIT_PASS", "adminadmin")
+QBIT_HOST = os.getenv("QBIT_HOST", "http://qbit-proxy:8082")
+QBIT_USER = os.getenv("QBIT_USER", "admin")
+QBIT_PASS = os.getenv("QBIT_PASS", "adminadmin")
 
-TL_UID     = os.getenv("TORRENTLEECH_UID")
-TL_PASS    = os.getenv("TORRENTLEECH_PASS")
-
+TL_UID = os.getenv("TORRENTLEECH_UID")
+TL_PASS = os.getenv("TORRENTLEECH_PASS")
 PROWLARR_API_KEY = os.getenv("PROWLARR_API_KEY")
-PROWLARR_URL     = os.getenv("PROWLARR_URL", "http://172.20.0.3:9696")
-
+PROWLARR_URL = os.getenv("PROWLARR_URL", "http://172.20.0.3:9696")
 MILKIE_COOKIE = os.getenv("MILKIE_COOKIE")
 
-MAX_PEERS  = int(os.getenv("MAX_PEERS", 10))
+MAX_PEERS = int(os.getenv("MAX_PEERS", 10))
 STOP_RATIO = float(os.getenv("STOP_RATIO", 2.0))
 
-# Environment fallbacks (used only if no CLI or SAB args)
-SAB_TITLE        = os.getenv("SAB_TITLE") or args.title or ""
+SAB_TITLE = os.getenv("SAB_TITLE") or args.title or ""
 SAB_COMPLETE_DIR = os.getenv("SAB_COMPLETE_DIR") or args.dir or "/downloads/complete"
-SAB_CATEGORY     = os.getenv("SAB_CATEGORY") or args.cat or ""
+SAB_CATEGORY = os.getenv("SAB_CATEGORY") or args.cat or ""
+
 
 # ============================================================
 # qBittorrent API Helper
@@ -89,8 +70,45 @@ if auth.status_code != 200 or "Ok" not in auth.text:
 else:
     print("✅ Connected to qBittorrent API")
 
+
 # ============================================================
-# TORRENTLEECH SEARCH
+# Torrent Verification Helper
+# ============================================================
+
+def verify_local_files_match(torrent_bytes, base_path):
+    """Check if all torrent files exist and match sizes locally."""
+    try:
+        torrent = bencodepy.decode(torrent_bytes)
+        info = torrent[b'info']
+        files = []
+        if b'files' in info:  # Multi-file torrent
+            for f in info[b'files']:
+                path = os.path.join(base_path, *[x.decode() for x in f[b'path']])
+                length = f[b'length']
+                files.append((path, length))
+        else:  # Single file torrent
+            path = os.path.join(base_path, info[b'name'].decode())
+            files.append((path, info[b'length']))
+
+        missing = []
+        for path, length in files:
+            if not os.path.exists(path) or os.path.getsize(path) != length:
+                missing.append(path)
+
+        if missing:
+            print(f"⚠️ Skipping — {len(missing)} file(s) missing or mismatched.")
+            for m in missing[:3]:
+                print(f"   → {m}")
+            return False
+        print("✅ All local files verified. Safe to seed.")
+        return True
+    except Exception as e:
+        print(f"⚠️ Torrent verification failed: {e}")
+        return False
+
+
+# ============================================================
+# TorrentLeech Search
 # ============================================================
 
 def find_on_torrentleech(title):
@@ -113,8 +131,9 @@ def find_on_torrentleech(title):
     print("🚫 No TorrentLeech match found.")
     return None
 
+
 # ============================================================
-# PROWLARR FALLBACK
+# Prowlarr Fallback
 # ============================================================
 
 def find_on_prowlarr(title):
@@ -138,22 +157,24 @@ def find_on_prowlarr(title):
         print(f"⚠️ Prowlarr fallback failed: {e}")
     return None
 
+
 # ============================================================
-# ADD TORRENT TO QBITTORRENT
+# Add Torrent to qBittorrent
 # ============================================================
 
 def add_torrent_to_qb(torrent_bytes, path):
     files = {'torrents': ('file.torrent', torrent_bytes)}
-    data  = {'savepath': path, 'skip_checking': 'false', 'autoTMM': 'false'}
-    resp  = QBIT.post(f"{QBIT_HOST}/api/v2/torrents/add", files=files, data=data)
+    data = {'savepath': path, 'skip_checking': 'false', 'autoTMM': 'false'}
+    resp = QBIT.post(f"{QBIT_HOST}/api/v2/torrents/add", files=files, data=data)
     if resp.status_code != 200:
         print(f"❌ Failed to add torrent: {resp.text}")
         return False
     print(f"📥 Added torrent to qBittorrent: {path}")
     return True
 
+
 # ============================================================
-# SET TORRENT LIMITS
+# Set Torrent Limits
 # ============================================================
 
 def set_torrent_limits(title):
@@ -172,30 +193,24 @@ def set_torrent_limits(title):
             return True
     return False
 
+
 # ============================================================
 # MAIN
 # ============================================================
 
 def main():
-    # If CLI flags were provided, prefer them (manual runs)
-    if args.title:
-        title    = args.title
-        path     = args.dir or "/downloads/complete"
-        category = args.cat or ""
-        print("🧰 CLI mode detected (ignoring SAB hook detection).")
-    else:
-        # Otherwise try SAB hook positional args
-        title, path, category = detect_sab_job()
-        if not title:
-            # Finally, fall back to envs
-            title    = SAB_TITLE
-            path     = SAB_COMPLETE_DIR
-            category = SAB_CATEGORY
-            if not title:
-                print("⚠️ No SAB hook args or --title provided. Run manually or via SAB.")
-                return
+    title, path, category = detect_sab_job()
 
-    # Skip non-video-ish content quickly
+    if not title:
+        print("🧰 CLI mode detected (ignoring SAB hook detection).")
+        title = SAB_TITLE
+        path = SAB_COMPLETE_DIR
+        category = SAB_CATEGORY
+        if not title:
+            print("⚠️ No SAB_TITLE or CLI args provided. Run manually or via SAB.")
+            return
+
+    # Skip known non-video types
     skip_exts = (".epub", ".pdf", ".txt", ".mobi", ".doc", ".docx")
     if any(title.lower().endswith(ext) for ext in skip_exts):
         print(f"⏭️ Skipping non-video content: {title}")
@@ -213,10 +228,14 @@ def main():
         print("❌ No torrent found for seeding.")
         return
 
-    if add_torrent_to_qb(torrent_data, path):
-        time.sleep(3)
-        set_torrent_limits(title)
-        print(f"🚀 Seeding started for '{title}'")
+    if verify_local_files_match(torrent_data, path):
+        if add_torrent_to_qb(torrent_data, path):
+            time.sleep(3)
+            set_torrent_limits(title)
+            print(f"🚀 Seeding started for '{title}'")
+    else:
+        print(f"⏭️ Skipped '{title}' (local files not identical).")
+
 
 # ============================================================
 # ENTRYPOINT
