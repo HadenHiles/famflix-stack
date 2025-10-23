@@ -226,6 +226,24 @@ services:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
     networks: [ media_net ]
 
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - media_net
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # optional email for Let's Encrypt notifications
+      - ACME_AGREE=true
+      - EMAIL=hadenhiles@gmail.com
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data            # persists TLS certs
+      - ./caddy/config:/config        # persists Caddy settings
+
 
   seedlink:
     image: python:3.12
