@@ -18,7 +18,7 @@ services:
       - ACTIVE_HEALTHCHECKS=1
       - LOCAL_NETWORK=192.168.0.0/16
     volumes:
-      - ./pia:/config
+      - ./pia:/pia-shared
       - /lib/modules:/lib/modules:ro
     ports:
       - "8082:8082/tcp"    # qBittorrent WebUI (via proxy)
@@ -73,12 +73,13 @@ services:
       - ./pia:/pia-shared:ro
       - ./scripts/pia-port-sync.sh:/pia-port-sync.sh:ro
     environment:
-      QBIT_HOST: "http://qbittorrent:8082"
+      QBIT_HOST: "http://pia:8082"
       QBIT_USER: "${QBIT_USER}"
       QBIT_PASS: "${QBIT_PASS}"
       PIA_PORT_FILE: "/pia-shared/port.dat"
       SYNC_INTERVAL: "600"
     command: [ "sh", "/pia-port-sync.sh" ]
+
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest

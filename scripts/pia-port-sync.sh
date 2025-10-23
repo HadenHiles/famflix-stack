@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+echo "Waiting 10 seconds for qBittorrent and PIA to initialize..."
+sleep 10
+
 pip install requests >/dev/null 2>&1
 
 while true; do
