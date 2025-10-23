@@ -63,6 +63,46 @@ services:
           }
         }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
 
+  pia-port-sync:
+    image: python:3.12-slim
+    container_name: pia-port-sync
+    depends_on: [ pia, qbittorrent ]
+    networks: [ media_net ]
+    restart: unless-stopped
+    volumes:
+      - ./pia:/pia-shared:ro
+    environment:
+      QBIT_HOST: "http://qbittorrent:8082"
+      QBIT_USER: "${QBIT_USER}"
+      QBIT_PASS: "${QBIT_PASS}"
+      PIA_PORT_FILE: "/pia-shared/port.dat"
+      SYNC_INTERVAL: "600"
+    command: >
+      sh -c "
+        pip install requests >/dev/null 2>&1 &&
+        while true; do
+          if [ -f $PIA_PORT_FILE ]; then
+            PORT=$(cat $PIA_PORT_FILE | tr -d '\r\n')
+            echo Updating qBittorrent to port $PORT...
+            python3 - <<'PYCODE'
+      import os, requests
+      host=os.getenv('QBIT_HOST')
+      user=os.getenv('QBIT_USER')
+      pwd=os.getenv('QBIT_PASS')
+      portfile=os.getenv('PIA_PORT_FILE')
+      session=requests.Session()
+      session.post(f'{host}/api/v2/auth/login', data={'username':user,'password':pwd})
+      port=open(portfile).read().strip()
+      session.post(f'{host}/api/v2/app/setPreferences', data={'json':f'{{"listen_port":{port}}}'})
+      print(f'✓ Synced qBittorrent port to {port}')
+      PYCODE
+                else
+                  echo Port file not found, waiting...
+                fi
+                sleep $SYNC_INTERVAL
+              done
+            "
+
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
