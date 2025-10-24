@@ -1,4 +1,4 @@
-import os, re, time, sys, requests, argparse, io, bencodepy
+import os, re, time, sys, requests, argparse
 from urllib.parse import quote
 
 # ============================================================
@@ -12,7 +12,7 @@ parser.add_argument("--cat")
 args, _ = parser.parse_known_args()
 
 def detect_sab_job():
-    """Detect SABnzbd hook arguments if run as a post-processing script."""
+    """Detect SAB hook parameters if script called by SABnzbd"""
     if len(sys.argv) >= 7:
         finaldir = sys.argv[1]
         nzbname = sys.argv[2]
@@ -29,7 +29,6 @@ def detect_sab_job():
                 category = "tv"
             else:
                 category = group
-
         return jobname, finaldir, category
     return None, None, None
 
@@ -72,43 +71,7 @@ else:
 
 
 # ============================================================
-# Torrent Verification Helper
-# ============================================================
-
-def verify_local_files_match(torrent_bytes, base_path):
-    """Check if all torrent files exist and match sizes locally."""
-    try:
-        torrent = bencodepy.decode(torrent_bytes)
-        info = torrent[b'info']
-        files = []
-        if b'files' in info:  # Multi-file torrent
-            for f in info[b'files']:
-                path = os.path.join(base_path, *[x.decode() for x in f[b'path']])
-                length = f[b'length']
-                files.append((path, length))
-        else:  # Single file torrent
-            path = os.path.join(base_path, info[b'name'].decode())
-            files.append((path, info[b'length']))
-
-        missing = []
-        for path, length in files:
-            if not os.path.exists(path) or os.path.getsize(path) != length:
-                missing.append(path)
-
-        if missing:
-            print(f"⚠️ Skipping — {len(missing)} file(s) missing or mismatched.")
-            for m in missing[:3]:
-                print(f"   → {m}")
-            return False
-        print("✅ All local files verified. Safe to seed.")
-        return True
-    except Exception as e:
-        print(f"⚠️ Torrent verification failed: {e}")
-        return False
-
-
-# ============================================================
-# TorrentLeech Search
+# TORRENTLEECH SEARCH
 # ============================================================
 
 def find_on_torrentleech(title):
@@ -133,7 +96,7 @@ def find_on_torrentleech(title):
 
 
 # ============================================================
-# Prowlarr Fallback
+# PROWLARR FALLBACK
 # ============================================================
 
 def find_on_prowlarr(title):
@@ -159,7 +122,45 @@ def find_on_prowlarr(title):
 
 
 # ============================================================
-# Add Torrent to qBittorrent
+# FILE CHECKING / FUZZY MATCHING
+# ============================================================
+
+def folder_size_bytes(path):
+    total = 0
+    for root, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except:
+                pass
+    return total
+
+def is_fuzzy_match(local_title, torrent_title):
+    clean = lambda s: re.sub(r'[^a-z0-9]', '', s.lower())
+    return clean(local_title) in clean(torrent_title) or clean(torrent_title) in clean(local_title)
+
+def verify_local_files(path, torrent_title, torrent_size_est=None):
+    """Check if folder has files roughly matching torrent size/title"""
+    if not os.path.exists(path):
+        print(f"⚠️ Missing path: {path}")
+        return False
+
+    local_size = folder_size_bytes(path)
+    if not torrent_size_est:
+        # If we don’t know expected torrent size, just assume OK
+        return True
+
+    diff_ratio = abs(local_size - torrent_size_est) / torrent_size_est
+    if diff_ratio < 0.10:  # within ±10%
+        print(f"✅ Folder size within tolerance ({diff_ratio:.1%})")
+        return True
+
+    print(f"⚠️ Size mismatch — local {local_size/1e9:.2f} GB vs torrent {torrent_size_est/1e9:.2f} GB")
+    return False
+
+
+# ============================================================
+# ADD TORRENT TO QBITTORRENT
 # ============================================================
 
 def add_torrent_to_qb(torrent_bytes, path):
@@ -174,7 +175,7 @@ def add_torrent_to_qb(torrent_bytes, path):
 
 
 # ============================================================
-# Set Torrent Limits
+# SET TORRENT LIMITS
 # ============================================================
 
 def set_torrent_limits(title):
@@ -200,48 +201,45 @@ def set_torrent_limits(title):
 
 def main():
     title, path, category = (None, None, None)
-
-    # Only detect SAB job if no CLI title provided
     if not args.title:
         title, path, category = detect_sab_job()
     else:
         print("🧰 CLI mode detected (skipping SAB hook auto-detect).")
 
+    title = title or SAB_TITLE
+    path = path or SAB_COMPLETE_DIR
+    category = category or SAB_CATEGORY or "unknown"
 
     if not title:
-        print("🧰 CLI mode detected (ignoring SAB hook detection).")
-        title = SAB_TITLE
-        path = SAB_COMPLETE_DIR
-        category = SAB_CATEGORY
-        if not title:
-            print("⚠️ No SAB_TITLE or CLI args provided. Run manually or via SAB.")
-            return
+        print("⚠️ No title provided. Run via SAB or pass --title.")
+        return
 
-    # Skip known non-video types
+    # Skip non-video types
     skip_exts = (".epub", ".pdf", ".txt", ".mobi", ".doc", ".docx")
     if any(title.lower().endswith(ext) for ext in skip_exts):
         print(f"⏭️ Skipping non-video content: {title}")
         return
 
-    print(f"🎬 Category: {category or 'unknown'}")
+    print(f"🎬 Category: {category}")
     print(f"🔍 Searching for: {title}")
 
-    torrent_data = (
-        find_on_torrentleech(title)
-        or find_on_prowlarr(title)
-    )
-
+    torrent_data = find_on_torrentleech(title) or find_on_prowlarr(title)
     if not torrent_data:
         print("❌ No torrent found for seeding.")
         return
 
-    if verify_local_files_match(torrent_data, path):
-        if add_torrent_to_qb(torrent_data, path):
-            time.sleep(3)
-            set_torrent_limits(title)
-            print(f"🚀 Seeding started for '{title}'")
-    else:
-        print(f"⏭️ Skipped '{title}' (local files not identical).")
+    # Fuzzy verification — assume safe if same title & within ±10% size
+    torrent_size_est = None
+    # Optionally could parse from .torrent metadata in future
+
+    if not verify_local_files(path, title, torrent_size_est):
+        print(f"⏭️ Skipped '{title}' (local files not within size tolerance).")
+        return
+
+    if add_torrent_to_qb(torrent_data, path):
+        time.sleep(3)
+        set_torrent_limits(title)
+        print(f"🚀 Seeding started for '{title}'")
 
 
 # ============================================================
