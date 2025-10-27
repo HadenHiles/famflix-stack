@@ -153,9 +153,9 @@ services:
       - "${MEDIA_BASE}/media:/data/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
-      - "Z:/famflix/media:/nas/media"
-      - "Z:/famflix/complete:/nas/complete"
-      - "Z:/famflix/incomplete:/nas/incomplete"
+      - "//10.175.1.101/remote/famflix/media:/nas/media"
+      - "//10.175.1.101/remote/famflix/complete:/nas/complete"
+      - "//10.175.1.101/remote/famflix/incomplete:/nas/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -173,9 +173,9 @@ services:
       - "${MEDIA_BASE}/media:/data/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
-      - "Z:/famflix/media:/nas/media"
-      - "Z:/famflix/complete:/nas/complete"
-      - "Z:/famflix/incomplete:/nas/incomplete"
+      - "//10.175.1.101/remote/famflix/media:/nas/media"
+      - "//10.175.1.101/remote/famflix/complete:/nas/complete"
+      - "//10.175.1.101/remote/famflix/incomplete:/nas/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -205,9 +205,9 @@ services:
       - "${MEDIA_BASE}/media/movies:/library/movies"
       - "${MEDIA_BASE}/media/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
-      - "Z:/famflix/media/movies:/nas/library/movies"
-      - "Z:/famflix/media/tv:/nas/library/tv"
-      - "Z:/famflix/complete:/nas/library/watch"
+      - "//10.175.1.101/remote/famflix/media/movies:/nas/library/movies"
+      - "//10.175.1.101/remote/famflix/media/tv:/nas/library/tv"
+      - "//10.175.1.101/remote/famflix/complete:/nas/library/watch"
     ports:
       - 8888:8888
     networks: [ media_net ]
@@ -224,8 +224,8 @@ services:
       - ./configs/bazarr:/config
       - "${MEDIA_BASE}/media/movies:/movies"
       - "${MEDIA_BASE}/media/tv:/tv"
-      - "Z:/famflix/media/movies:/nas/movies"
-      - "Z:/famflix/media/tv:/nas/tv"
+      - "//10.175.1.101/remote/famflix/media/movies:/nas/movies"
+      - "//10.175.1.101/remote/famflix/media/tv:/nas/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -278,7 +278,7 @@ services:
     volumes:
       - ./configs/plex:/config
       - "${MEDIA_BASE}/media:/data/media"
-      - "Z:/famflix/media:/nas/media"
+      - "//10.175.1.101/remote/famflix/media:/nas/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -338,8 +338,8 @@ services:
     volumes:
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE}/media:/data/media"
-      - "Z:/famflix/media:/nas/complete"
-      - "Z:/famflix/media:/nas/media"
+      - "//10.175.1.101/remote/famflix/media:/nas/complete"
+      - "//10.175.1.101/remote/famflix/media:/nas/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     command: bash -c "pip install requests urllib3 && sleep infinity"

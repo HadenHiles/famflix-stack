@@ -1,9 +1,6 @@
 # -------------------------------------------------
 # FamFlix Media Stack — Local (HTTP) + Public (HTTPS)
 # -------------------------------------------------
-# .local routes -> HTTP only (no TLS)
-# .famflix.live routes -> HTTPS via Let's Encrypt
-# -------------------------------------------------
 {
 	email hadenhiles@gmail.com
 	acme_ca https://acme-v02.api.letsencrypt.org/directory
@@ -70,7 +67,7 @@ plex.famflix.live {
 
 	reverse_proxy http://plex:32400 {
 		header_up Host plex.famflix.live
-		header_up X-Real-IP { remote_host }
+		header_up X-Real-IP remote_host
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-Host plex.famflix.live
 		flush_interval -1
