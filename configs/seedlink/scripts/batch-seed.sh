@@ -29,3 +29,11 @@ seed_category "tv"
 
 echo "✅ Batch seed run completed — $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 echo "" >> "$LOG_FILE"
+
+
+
+# Run the batch seeder
+# docker exec -it seedlink /app/batch-seed.sh
+
+#Tail logs:
+# docker exec -it seedlink tail -f /logs/batch-seed.log
