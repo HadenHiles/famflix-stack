@@ -7,15 +7,10 @@
 {
 	email hadenhiles@gmail.com
 	acme_ca https://acme-v02.api.letsencrypt.org/directory
-
-	# Don't disable HTTPS globally — only disable redirects
 	auto_https disable_redirects
 }
 
 # ---------- LOCAL ROUTES (HTTP ONLY) ----------
-# (Accessible within LAN only)
-
-# Plex
 http://plex.local {
 	@root path /
 	redir @root /web
@@ -24,66 +19,54 @@ http://plex.local {
 	}
 }
 
-# qBittorrent
 http://qbittorrent.local {
 	reverse_proxy qbit-proxy:8082
 }
 
-# SABnzbd
 http://sabnzbd.local {
 	reverse_proxy sab-proxy:8080
 }
 
-# Prowlarr
 http://prowlarr.local {
 	reverse_proxy prowlarr:9696
 }
 
-# Sonarr
 http://sonarr.local {
 	reverse_proxy sonarr:8989
 }
 
-# Radarr
 http://radarr.local {
 	reverse_proxy radarr:7878
 }
 
-# Jellyseerr
 http://jellyseerr.local {
 	reverse_proxy jellyseerr:5055
 }
 
-# Unmanic
 http://unmanic.local {
 	reverse_proxy unmanic:8888
 }
 
-# Bazarr
 http://bazarr.local {
 	reverse_proxy bazarr:6767
 }
 
-# Tautulli
 http://tautulli.local {
 	reverse_proxy tautulli:8181
 }
 
-# Maintainerr
 http://maintainerr.local {
 	reverse_proxy maintainerr:6246
 }
 
 # ---------- PUBLIC ROUTES (HTTPS ENABLED) ----------
-
-# Plex (public)
 plex.famflix.live {
 	encode zstd gzip
-
 	@root path /
 	redir @root /web
 
-	reverse_proxy http://plex:32400 {
+	reverse_proxy {
+		to http://plex:32400
 		header_up Host plex.famflix.live
 		header_up X-Real-IP { http.request.remote }
 		header_up X-Forwarded-Proto https
@@ -92,9 +75,7 @@ plex.famflix.live {
 	}
 }
 
-# Jellyseerr (public)
 jellyseerr.famflix.live {
-	# Use real Let's Encrypt certs instead of internal
 	tls {
 		ca https://acme-v02.api.letsencrypt.org/directory
 	}
@@ -102,7 +83,6 @@ jellyseerr.famflix.live {
 	encode zstd gzip
 }
 
-# Root domain redirect
 famflix.live {
 	redir https://plex.famflix.live
 }
