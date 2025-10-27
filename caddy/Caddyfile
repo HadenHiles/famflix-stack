@@ -11,55 +11,91 @@
 }
 
 # ---------- LOCAL ROUTES (HTTP ONLY) ----------
+# (Accessible within LAN only)
+
+# Plex
 http://plex.local {
 	@root path /
 	redir @root /web
-	reverse_proxy plex:32400 {
+	reverse_proxy {
+		to plex:32400
 		flush_interval -1
 	}
 }
 
+# qBittorrent
 http://qbittorrent.local {
-	reverse_proxy qbit-proxy:8082
+	reverse_proxy {
+		to qbit-proxy:8082
+	}
 }
 
+# SABnzbd
 http://sabnzbd.local {
-	reverse_proxy sab-proxy:8080
+	reverse_proxy {
+		to sab-proxy:8080
+	}
 }
 
+# Prowlarr
 http://prowlarr.local {
-	reverse_proxy prowlarr:9696
+	reverse_proxy {
+		to prowlarr:9696
+	}
 }
 
+# Sonarr
 http://sonarr.local {
-	reverse_proxy sonarr:8989
+	reverse_proxy {
+		to sonarr:8989
+	}
 }
 
+# Radarr
 http://radarr.local {
-	reverse_proxy radarr:7878
+	reverse_proxy {
+		to radarr:7878
+	}
 }
 
+# Jellyseerr
 http://jellyseerr.local {
-	reverse_proxy jellyseerr:5055
+	reverse_proxy {
+		to jellyseerr:5055
+	}
 }
 
+# Unmanic
 http://unmanic.local {
-	reverse_proxy unmanic:8888
+	reverse_proxy {
+		to unmanic:8888
+	}
 }
 
+# Bazarr
 http://bazarr.local {
-	reverse_proxy bazarr:6767
+	reverse_proxy {
+		to bazarr:6767
+	}
 }
 
+# Tautulli
 http://tautulli.local {
-	reverse_proxy tautulli:8181
+	reverse_proxy {
+		to tautulli:8181
+	}
 }
 
+# Maintainerr
 http://maintainerr.local {
-	reverse_proxy maintainerr:6246
+	reverse_proxy {
+		to maintainerr:6246
+	}
 }
 
 # ---------- PUBLIC ROUTES (HTTPS ENABLED) ----------
+
+# Plex (public)
 plex.famflix.live {
 	encode zstd gzip
 	@root path /
@@ -75,14 +111,18 @@ plex.famflix.live {
 	}
 }
 
+# Jellyseerr (public)
 jellyseerr.famflix.live {
 	tls {
 		ca https://acme-v02.api.letsencrypt.org/directory
 	}
-	reverse_proxy jellyseerr:5055
+	reverse_proxy {
+		to jellyseerr:5055
+	}
 	encode zstd gzip
 }
 
+# Root domain redirect
 famflix.live {
 	redir https://plex.famflix.live
 }
