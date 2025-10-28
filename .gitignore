@@ -2,6 +2,8 @@
 !docker-compose.yml
 !.example.env
 !.gitignore
+!famflix.ps1
+!Mount-famflixNAS.example.ps1
 !caddy/*
 !caddy
 !scripts
