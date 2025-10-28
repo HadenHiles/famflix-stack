@@ -40,8 +40,12 @@ services:
       - WEBUI_PORT=8082
     volumes:
       - ./configs/qbittorrent:/config
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE}/media:/nas/media"
+      - "${MEDIA_BASE}/complete:/nas/complete"
+      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
+
     restart: unless-stopped
 
   # NEW: Proxy to expose qBittorrent from PIA network to media_net
@@ -103,9 +107,12 @@ services:
       - SAB_COMPLETE_DIR=/downloads/complete
     volumes:
       - ./configs/sabnzbd:/config
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
       - ./configs/seedlink/scripts:/downloads/scripts:ro
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE}/media:/nas/media"
+      - "${MEDIA_BASE}/complete:/nas/complete"
+      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     restart: unless-stopped
 
   # NEW: Proxy to expose SABnzbd from PIA network to media_net
@@ -150,12 +157,12 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sonarr:/config
-      - "${MEDIA_BASE}/media:/data/media"
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
-      - "//10.175.1.101/remote/famflix/media:/nas/media"
-      - "//10.175.1.101/remote/famflix/complete:/nas/complete"
-      - "//10.175.1.101/remote/famflix/incomplete:/nas/incomplete"
+      - "${MEDIA_BASE_EXT}/media:/data/media"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE}/media:/nas/media"
+      - "${MEDIA_BASE}/complete:/nas/complete"
+      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -170,12 +177,12 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/radarr:/config
-      - "${MEDIA_BASE}/media:/data/media"
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}/incomplete:/downloads/incomplete"
-      - "//10.175.1.101/remote/famflix/media:/nas/media"
-      - "//10.175.1.101/remote/famflix/complete:/nas/complete"
-      - "//10.175.1.101/remote/famflix/incomplete:/nas/incomplete"
+      - "${MEDIA_BASE_EXT}/media:/data/media"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE}/media:/nas/media"
+      - "${MEDIA_BASE}/complete:/nas/complete"
+      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -202,12 +209,12 @@ services:
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
       - ./configs/unmanic:/config
-      - "${MEDIA_BASE}/media/movies:/library/movies"
-      - "${MEDIA_BASE}/media/tv:/library/tv"
-      - "${MEDIA_BASE}/complete:/library/watch"
-      - "//10.175.1.101/remote/famflix/media/movies:/nas/library/movies"
-      - "//10.175.1.101/remote/famflix/media/tv:/nas/library/tv"
-      - "//10.175.1.101/remote/famflix/complete:/nas/library/watch"
+      - "${MEDIA_BASE_EXT}/media/movies:/library/movies"
+      - "${MEDIA_BASE_EXT}/media/tv:/library/tv"
+      - "${MEDIA_BASE_EXT}/complete:/library/watch"
+      - "${MEDIA_BASE}/media/movies:/nas/library/movies"
+      - "${MEDIA_BASE}/media/tv:/nas/library/tv"
+      - "${MEDIA_BASE}/complete:/nas/library/watch"
     ports:
       - 8888:8888
     networks: [ media_net ]
@@ -222,10 +229,10 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
-      - "${MEDIA_BASE}/media/movies:/movies"
-      - "${MEDIA_BASE}/media/tv:/tv"
-      - "//10.175.1.101/remote/famflix/media/movies:/nas/movies"
-      - "//10.175.1.101/remote/famflix/media/tv:/nas/tv"
+      - "${MEDIA_BASE_EXT}/media/movies:/movies"
+      - "${MEDIA_BASE_EXT}/media/tv:/tv"
+      - "${MEDIA_BASE}/media/movies:/nas/movies"
+      - "${MEDIA_BASE}/media/tv:/nas/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -277,8 +284,8 @@ services:
       - VERSION=docker
     volumes:
       - ./configs/plex:/config
-      - "${MEDIA_BASE}/media:/data/media"
-      - "//10.175.1.101/remote/famflix/media:/nas/media"
+      - "${MEDIA_BASE_EXT}/media:/data/media"
+      - "${MEDIA_BASE}/media:/nas/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -336,10 +343,10 @@ services:
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
     volumes:
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}/media:/data/media"
-      - "//10.175.1.101/remote/famflix/media:/nas/complete"
-      - "//10.175.1.101/remote/famflix/media:/nas/media"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/media:/data/media"
+      - "${MEDIA_BASE}/media:/nas/complete"
+      - "${MEDIA_BASE}/media:/nas/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     command: bash -c "pip install requests urllib3 && sleep infinity"
