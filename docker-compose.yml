@@ -26,7 +26,8 @@ services:
       - "6881:6881/tcp"
       - "6881:6881/udp"
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -40,15 +41,14 @@ services:
       - WEBUI_PORT=8082
     volumes:
       - ./configs/qbittorrent:/config
+      - ./pia:/pia-shared:ro
       - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
       - "${MEDIA_BASE}/media:/nas/media"
       - "${MEDIA_BASE}/complete:/nas/complete"
       - "${MEDIA_BASE}/incomplete:/nas/incomplete"
-
     restart: unless-stopped
 
-  # NEW: Proxy to expose qBittorrent from PIA network to media_net
   qbit-proxy:
     image: nginx:alpine
     container_name: qbit-proxy
@@ -84,16 +84,16 @@ services:
       SYNC_INTERVAL: "600"
     command: [ "sh", "/pia-port-sync.sh" ]
 
-
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
-    network_mode: "service:pia"
+    network_mode: "service:pia" # ✅ behind the VPN
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - SABNZBD_OPTS=--server-name=* --https=0
       - QBIT_HOST=http://qbit-proxy:8082
       - QBIT_USER=${QBIT_USER}
       - QBIT_PASS=${QBIT_PASS}
@@ -105,6 +105,7 @@ services:
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
       - SAB_COMPLETE_DIR=/downloads/complete
+      - DISABLE_HOST_WHITELIST=1 # disable hostname check
     volumes:
       - ./configs/sabnzbd:/config
       - ./configs/seedlink/scripts:/downloads/scripts:ro
@@ -115,7 +116,7 @@ services:
       - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     restart: unless-stopped
 
-  # NEW: Proxy to expose SABnzbd from PIA network to media_net
+
   sab-proxy:
     image: nginx:alpine
     container_name: sab-proxy
@@ -129,10 +130,12 @@ services:
           server {
             listen 8080;
             location / {
+              proxy_set_header Host 127.0.0.1;
               proxy_pass http://pia:8080;
             }
           }
-        }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+        }' > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""
+
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -351,4 +354,3 @@ services:
       - ./configs/seedlink/logs:/logs
     command: bash -c "pip install requests urllib3 && sleep infinity"
     restart: unless-stopped
-
