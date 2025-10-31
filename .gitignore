@@ -1,5 +1,6 @@
 *
 !docker-compose.yml
+!dockerfile.seedlink
 !.example.env
 !.gitignore
 !famflix.ps1
