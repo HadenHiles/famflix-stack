@@ -232,10 +232,12 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
+      - "${MEDIA_BASE_EXT}/media:/data/media"
+      - "${MEDIA_BASE}/media:/nas/media"
       - "${MEDIA_BASE_EXT}/media/movies:/movies"
       - "${MEDIA_BASE_EXT}/media/tv:/tv"
-      - "${MEDIA_BASE}/media/movies:/nas/movies"
-      - "${MEDIA_BASE}/media/tv:/nas/tv"
+      - "${MEDIA_BASE}/media/movies:/nas/media/movies"
+      - "${MEDIA_BASE}/media/tv:/nas/media/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -330,7 +332,9 @@ services:
       - ./caddy/config:/config
 
   seedlink:
-    image: python:3.12
+    build:
+      context: .
+      dockerfile: dockerfile.seedlink
     container_name: seedlink
     networks: [ media_net ]
     depends_on: [ qbittorrent, sabnzbd ]
@@ -340,7 +344,7 @@ services:
       - QBIT_PASS=${QBIT_PASS}
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-      - PROWLARR_URL=http://172.20.0.3:9696
+      - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
@@ -352,5 +356,5 @@ services:
       - "${MEDIA_BASE}/media:/nas/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
-    command: bash -c "pip install requests urllib3 && sleep infinity"
     restart: unless-stopped
+
