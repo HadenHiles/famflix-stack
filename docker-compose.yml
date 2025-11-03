@@ -21,8 +21,8 @@ services:
       - ./pia:/pia-shared
       - /lib/modules:/lib/modules:ro
     ports:
-      - "8082:8082/tcp"    # qBittorrent WebUI (via proxy)
-      - "8080:8080/tcp"    # SABnzbd WebUI (via proxy)
+      - "8082:8082/tcp" # qBittorrent WebUI (via proxy)
+      - "8080:8080/tcp" # SABnzbd WebUI (via proxy)
       - "6881:6881/tcp"
       - "6881:6881/udp"
     restart: unless-stopped
@@ -42,11 +42,9 @@ services:
     volumes:
       - ./configs/qbittorrent:/config
       - ./pia:/pia-shared:ro
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${MEDIA_BASE}/media:/nas/media"
-      - "${MEDIA_BASE}/complete:/nas/complete"
-      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     restart: unless-stopped
 
   qbit-proxy:
@@ -109,13 +107,10 @@ services:
     volumes:
       - ./configs/sabnzbd:/config
       - ./configs/seedlink/scripts:/downloads/scripts:ro
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${MEDIA_BASE}/media:/nas/media"
-      - "${MEDIA_BASE}/complete:/nas/complete"
-      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
     restart: unless-stopped
-
 
   sab-proxy:
     image: nginx:alpine
@@ -135,7 +130,6 @@ services:
             }
           }
         }' > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""
-
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -160,12 +154,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sonarr:/config
-      - "${MEDIA_BASE_EXT}/media:/data/media"
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${MEDIA_BASE}/media:/nas/media"
-      - "${MEDIA_BASE}/complete:/nas/complete"
-      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/complete:/data/complete"
+      - "${MEDIA_BASE}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -180,12 +171,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/radarr:/config
-      - "${MEDIA_BASE_EXT}/media:/data/media"
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${MEDIA_BASE}/media:/nas/media"
-      - "${MEDIA_BASE}/complete:/nas/complete"
-      - "${MEDIA_BASE}/incomplete:/nas/incomplete"
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/complete:/data/complete"
+      - "${MEDIA_BASE}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -212,12 +200,9 @@ services:
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
       - ./configs/unmanic:/config
-      - "${MEDIA_BASE_EXT}/media/movies:/library/movies"
-      - "${MEDIA_BASE_EXT}/media/tv:/library/tv"
-      - "${MEDIA_BASE_EXT}/complete:/library/watch"
-      - "${MEDIA_BASE}/media/movies:/nas/library/movies"
-      - "${MEDIA_BASE}/media/tv:/nas/library/tv"
-      - "${MEDIA_BASE}/complete:/nas/library/watch"
+      - "${MEDIA_BASE}/media/movies:/library/movies"
+      - "${MEDIA_BASE}/media/tv:/library/tv"
+      - "${MEDIA_BASE}/complete:/library/watch"
     ports:
       - 8888:8888
     networks: [ media_net ]
@@ -232,12 +217,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
-      - "${MEDIA_BASE_EXT}/media:/data/media"
-      - "${MEDIA_BASE}/media:/nas/media"
-      - "${MEDIA_BASE_EXT}/media/movies:/movies"
-      - "${MEDIA_BASE_EXT}/media/tv:/tv"
-      - "${MEDIA_BASE}/media/movies:/nas/media/movies"
-      - "${MEDIA_BASE}/media/tv:/nas/media/tv"
+      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media/movies:/movies"
+      - "${MEDIA_BASE}/media/tv:/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -274,6 +256,7 @@ services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
+    runtime: nvidia
     ports:
       - "32400:32400/tcp"
       - "1900:1900/udp"
@@ -287,10 +270,12 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - VERSION=docker
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
     volumes:
       - ./configs/plex:/config
-      - "${MEDIA_BASE_EXT}/media:/data/media"
-      - "${MEDIA_BASE}/media:/nas/media"
+      - ./transcode_tmp:/transcode
+      - "${MEDIA_BASE}/media:/data/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -350,11 +335,8 @@ services:
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
     volumes:
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/media:/data/media"
-      - "${MEDIA_BASE}/media:/nas/complete"
-      - "${MEDIA_BASE}/media:/nas/media"
+      - "${MEDIA_BASE}/media:/downloads/complete"
+      - "${MEDIA_BASE}/media:/data/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     restart: unless-stopped
-
