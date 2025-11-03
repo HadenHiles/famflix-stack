@@ -14,26 +14,28 @@ $wslDistro = 'Ubuntu'
 . "$PSScriptRoot\famflix-secrets.ps1"
 
 # --- Ask for sudo password once ---
-Write-Host "`n🔐 Please enter your Ubuntu sudo password (used once for all mount operations):"
+Write-Host "`nEnter your Ubuntu sudo password (used once for all mount operations):"
 $securePwd = Read-Host -AsSecureString
 $plainPwd = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
     [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePwd)
 )
 
-# Function: Run a bash command inside WSL (Ubuntu) with sudo password piped
+# Helper: run a bash command inside Ubuntu with sudo password piped
 function Invoke-WSL {
     param([string]$cmd)
-    $wrapped = "echo '$plainPwd' | sudo -S bash -c ""$cmd"""
-    wsl -d $wslDistro -- bash -c "$wrapped"
+    # Escape single quotes so the command can be safely embedded in a single-quoted bash -c
+    $replaceWith = ([char]39) + ([char]34) + ([char]39) + ([char]34) + ([char]39)
+    $escaped = $cmd -replace "'", $replaceWith
+    $wrapped = "echo '$plainPwd' | sudo -S bash -lc '$escaped'"
+    wsl -d $wslDistro -- bash -lc "$wrapped"
 }
 
-# --- Wait for Docker (inside Ubuntu) ---
+# --- Wait for Docker ---
 function Wait-ForDocker {
     Write-Host "`n[Init] Checking Docker Engine in WSL ($wslDistro)..." -ForegroundColor Cyan
-    $checkCmd = "docker info --format '{{.ServerVersion}}' 2>/dev/null || true"
     for ($i = 0; $i -lt 60; $i++) {
-        $dockerdUp = wsl -d $wslDistro -- bash -c $checkCmd
-        if ($dockerdUp) {
+        wsl -d $wslDistro -- bash -lc 'docker info >/dev/null 2>&1'
+        if ($LASTEXITCODE -eq 0) {
             Write-Host "[OK] Docker Engine is live in $wslDistro." -ForegroundColor Green
             return
         }
@@ -62,15 +64,15 @@ function Mount-NAS {
     Write-Host "   Mount Root : $mountRoot"
 
     $mountCmd = @"
-mkdir -p $mountRoot &&
-mount -t cifs //$nasServer/$nasShare $mountRoot -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino
+mkdir -p '$mountRoot'
+mount -t cifs '//$nasServer/$nasShare' '$mountRoot' -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino
 "@
     Write-Host "[Debug] Mounting NAS..." -ForegroundColor Yellow
     Invoke-WSL $mountCmd
 
     $bindCmd = @"
-mkdir -p $sharedMount &&
-mount --bind $mountRoot $sharedMount
+mkdir -p '$sharedMount'
+mount --bind '$mountRoot' '$sharedMount'
 "@
     Write-Host "[Debug] Creating Docker-visible bind mount..." -ForegroundColor Yellow
     Invoke-WSL $bindCmd
@@ -88,15 +90,18 @@ mount --bind $mountRoot $sharedMount
 # --- Unmount NAS ---
 function Unmount-NAS {
     Write-Host "`n[Unmounting] NAS and bind mounts from WSL ($wslDistro)..." -ForegroundColor Cyan
-    Invoke-WSL "umount -f '$sharedMount' 2>/dev/null || true"
-    Invoke-WSL "umount -f '$mountRoot' 2>/dev/null || true"
+    Invoke-WSL "umount -f '$sharedMount' >/dev/null 2>&1 || true"
+    Invoke-WSL "umount -f '$mountRoot' >/dev/null 2>&1 || true"
     Write-Host "[OK] NAS unmounted." -ForegroundColor Green
 }
 
 # --- Stack Controls ---
 function Start-Stack {
     Write-Host "`n[Starting] FamFlix stack via Ubuntu Docker..." -ForegroundColor Cyan
-    $cmd = "cd '$stackPath' && docker compose up -d"
+    $cmd = @"
+cd '$stackPath'
+docker compose up -d
+"@
     wsl -d $wslDistro -- bash -lc "$cmd"
     Write-Host "[OK] Stack is live!" -ForegroundColor Green
 
@@ -106,7 +111,10 @@ function Start-Stack {
 
 function Stop-Stack {
     Write-Host "`n[Stopping] FamFlix stack..." -ForegroundColor Cyan
-    $cmd = "cd '$stackPath' && docker compose down"
+    $cmd = @"
+cd '$stackPath'
+docker compose down
+"@
     wsl -d $wslDistro -- bash -lc "$cmd"
     Write-Host "[OK] Stack stopped." -ForegroundColor Green
 }
@@ -116,5 +124,5 @@ switch ($Action) {
     'start' { Mount-NAS; Start-Stack }
     'stop' { Stop-Stack; Unmount-NAS }
     'restart' { Stop-Stack; Unmount-NAS; Mount-NAS; Start-Stack }
-    default { Write-Host "Unknown action '$Action'. Use: start | stop | restart." -ForegroundColor Yellow; exit 1 }
+    default { Write-Host ("Unknown action '{0}'. Use: start | stop | restart." -f $Action) -ForegroundColor Yellow; exit 1 }
 }
