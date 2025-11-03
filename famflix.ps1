@@ -4,39 +4,24 @@ param(
     [string]$Action
 )
 
-# --- Paths & Config ---
 $stackPath = 'C:\Users\haden\famflix-stack'
-$credFile = "$stackPath\.famflix-secrets.ps1"
-$zDrivePath = 'Z:\famflix'
-$composeCmd = 'docker compose'
+$mountRoot = '/mnt/nas'
+$mountPoint = "$mountRoot/remote"
 
-# --- Import credentials safely ---
-if (Test-Path $credFile) {
-    . $credFile
-}
-else {
-    Write-Host "[Error] Missing credentials file: $credFile" -ForegroundColor Red
-    Write-Host "→ Create it with lines like:" -ForegroundColor Yellow
-    Write-Host "   `$nasServer = '10.175.1.101'" -ForegroundColor Gray
-    Write-Host "   `$nasShare  = 'remote'" -ForegroundColor Gray
-    Write-Host "   `$username  = 'haden'" -ForegroundColor Gray
-    Write-Host "   `$password  = 'YourNASPassword'" -ForegroundColor Gray
-    exit 1
-}
+. "$PSScriptRoot\famflix-secrets.ps1"
 
-# --- Helper: wait for Docker backend ---
 function Wait-ForWSL {
     Write-Host "`n[Init] Waiting for docker-desktop WSL backend to start..." -ForegroundColor Cyan
     $maxWait = 120
     for ($i = 0; $i -lt $maxWait; $i++) {
-        $running = (wsl -l -v 2>$null | Select-String "docker-desktop" | Select-String "Running")
-        $engine = (docker info --format '{{.ServerVersion}}' 2>$null)
-        if ($running -or $engine) {
+        $wslStatus = wsl -l -v 2>$null | Select-String "docker-desktop" | Select-String "Running"
+        $dockerdUp = docker info --format '{{.ServerVersion}}' 2>$null
+        if ($wslStatus -or $dockerdUp) {
             Write-Host "[OK] Docker WSL backend is live." -ForegroundColor Green
             return
         }
         if ($i -eq 0) {
-            Write-Host "Waiting for Docker Engine to start (~20–30s after launch)..." -ForegroundColor Yellow
+            Write-Host "Waiting for Docker Engine to start (this can take about 20–30s after launch)..." -ForegroundColor Yellow
         }
         Start-Sleep -Seconds 2
     }
@@ -44,18 +29,60 @@ function Wait-ForWSL {
     exit 1
 }
 
-# --- Verify Windows NAS mount ---
-function Verify-WindowsMount {
-    Write-Host "`n[Check] Verifying Windows NAS mount (Z:)..." -ForegroundColor Cyan
-    if (-not (Test-Path $zDrivePath)) {
-        Write-Host "[Error] Z: drive not found or disconnected!" -ForegroundColor Red
-        Write-Host "→ Please ensure //$nasServer/$nasShare is mounted as Z: in Windows Explorer." -ForegroundColor Yellow
-        exit 1
+function Mount-NAS {
+    Write-Host "`n[Mounting] NAS share inside Docker..." -ForegroundColor Cyan
+    Wait-ForWSL
+    wsl -d docker-desktop -- mkdir -p "$mountPoint" | Out-Null
+
+    # Mask password for display
+    $maskedPassword = if ($password.Length -gt 4) {
+        $password.Substring(0, 2) + ('*' * ($password.Length - 4)) + $password.Substring($password.Length - 2)
     }
-    Write-Host "[OK] NAS drive is available at $zDrivePath" -ForegroundColor Green
+    else { '*' * $password.Length }
+
+    Write-Host "[Debug] Mount configuration:" -ForegroundColor Yellow
+    Write-Host ("   NAS Server : {0}" -f $nasServer)
+    Write-Host ("   NAS Share  : {0}" -f $nasShare)
+    Write-Host ("   Username   : {0}" -f $username)
+    Write-Host ("   Password   : {0}" -f $maskedPassword)
+    Write-Host ("   Mount Path : {0}" -f $mountRoot)
+    Write-Host ("   Mount Point: {0}" -f $mountPoint)
+
+    $isMounted = wsl -d docker-desktop mount | Select-String "$mountPoint"
+    if ($isMounted) {
+        Write-Host "[Skip] NAS already mounted at $mountPoint" -ForegroundColor Yellow
+        return
+    }
+
+    # The mount command we’ll execute
+    $mountCmd = "mount -t cifs '//$nasServer/$nasShare' '$mountRoot' -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino"
+    Write-Host "`n[Debug] Running mount command inside docker-desktop:" -ForegroundColor Cyan
+    Write-Host "   $mountCmd" -ForegroundColor White
+
+    for ($try = 1; $try -le 3; $try++) {
+        Write-Host "Attempt $try mounting //$nasServer/$nasShare..."
+        wsl -d docker-desktop -- sh -c "$mountCmd" 2>$null
+
+        # Verify
+        $mounted = wsl -d docker-desktop -- ls "$mountPoint/famflix/media/movies" 2>$null
+        if ($mounted) {
+            Write-Host "[OK] NAS mounted at $mountPoint" -ForegroundColor Green
+            return
+        }
+        Write-Host "[Warn] Mount failed (try $try), retrying in 3s..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 3
+    }
+
+    Write-Host "[Error] Mount failed after multiple attempts. Check NAS credentials or IP." -ForegroundColor Red
+    exit 1
 }
 
-# --- Start Docker Desktop if needed ---
+function Unmount-NAS {
+    Write-Host "`n[Unmounting] NAS from Docker..." -ForegroundColor Cyan
+    wsl -d docker-desktop -- umount "$mountRoot" 2>$null
+    Write-Host "[OK] NAS unmounted." -ForegroundColor Green
+}
+
 function Start-Docker {
     if (-not (Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue)) {
         Write-Host "[Starting] Docker Desktop..." -ForegroundColor Cyan
@@ -65,42 +92,33 @@ function Start-Docker {
     Wait-ForWSL
 }
 
-# --- No-op mount step (we use Windows Z: now) ---
-function Mount-NAS {
-    Write-Host "[Mounting] Skipped — using Windows-mounted Z: drive via Docker Desktop bind." -ForegroundColor Yellow
-}
-
-# --- Stack control ---
 function Start-Stack {
     Write-Host "`n[Starting] FamFlix stack..." -ForegroundColor Cyan
     Set-Location $stackPath
-    & $composeCmd up -d
+    docker compose up -d
     Write-Host "[OK] Stack is live!" -ForegroundColor Green
 }
 
 function Stop-Stack {
     Write-Host "`n[Stopping] FamFlix stack..." -ForegroundColor Cyan
     Set-Location $stackPath
-    & $composeCmd down
+    docker compose down
     Write-Host "[OK] Stack stopped." -ForegroundColor Green
 }
 
-# --- Actions ---
 switch ($Action) {
     'start' {
-        Verify-WindowsMount
         Start-Docker
         Mount-NAS
         Start-Stack
     }
     'stop' {
         Stop-Stack
-        Write-Host "[OK] No unmount required (Windows manages Z:)" -ForegroundColor Yellow
+        Unmount-NAS
     }
     'restart' {
         Stop-Stack
-        Write-Host "[OK] No unmount required (Windows manages Z:)" -ForegroundColor Yellow
-        Verify-WindowsMount
+        Unmount-NAS
         Start-Docker
         Mount-NAS
         Start-Stack
