@@ -54,13 +54,23 @@ function Mount-NAS {
         return
     }
 
-    $mountCmd = "mount -t cifs '//$nasServer/$nasShare' '$mountRoot' -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino"
+    # Build mount command as argument array to avoid PowerShell quote issues
+    $mountArgs = @(
+        "-d", "docker-desktop",
+        "--",
+        "mount",
+        "-t", "cifs",
+        "//${nasServer}/${nasShare}",
+        $mountRoot,
+        "-o", "username=${username},password=${password},rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino"
+    )
+
     Write-Host "`n[Debug] Running mount command inside docker-desktop:" -ForegroundColor Cyan
-    Write-Host "   $mountCmd" -ForegroundColor White
+    Write-Host "   wsl $($mountArgs -join ' ')" -ForegroundColor White
 
     for ($try = 1; $try -le 3; $try++) {
         Write-Host "Attempt $try mounting //$nasServer/$nasShare..."
-        $result = wsl -d docker-desktop -- sh -c "$mountCmd 2>&1"
+        $result = & wsl.exe @mountArgs 2>&1
         if ($LASTEXITCODE -eq 0) {
             $mounted = wsl -d docker-desktop -- ls "$mountPoint/famflix/media/movies" 2>$null
             if ($mounted) {
@@ -76,6 +86,7 @@ function Mount-NAS {
     Write-Host "[Error] Mount failed after multiple attempts. Check NAS credentials or IP." -ForegroundColor Red
     exit 1
 }
+
 
 function Unmount-NAS {
     Write-Host "`n[Unmounting] NAS from Docker..." -ForegroundColor Cyan
