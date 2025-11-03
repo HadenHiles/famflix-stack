@@ -21,7 +21,7 @@ function Wait-ForWSL {
             return
         }
         if ($i -eq 0) {
-            Write-Host "Waiting for Docker Engine to start (this can take about 20–30s after launch)..." -ForegroundColor Yellow
+            Write-Host "Waiting for Docker Engine to start (this can take about 20-30s after launch)..." -ForegroundColor Yellow
         }
         Start-Sleep -Seconds 2
     }
@@ -36,7 +36,7 @@ function Mount-NAS {
 
     # Mask password for display
     $maskedPassword = if ($password.Length -gt 4) {
-        $password.Substring(0, 2) + ('*' * ($password.Length - 4)) + $password.Substring($password.Length - 2)
+        $password.Substring(0, 1) + ('*' * ($password.Length - 4)) + $password.Substring($password.Length - 2)
     }
     else { '*' * $password.Length }
 
@@ -45,7 +45,7 @@ function Mount-NAS {
     Write-Host ("   NAS Share  : {0}" -f $nasShare)
     Write-Host ("   Username   : {0}" -f $username)
     Write-Host ("   Password   : {0}" -f $maskedPassword)
-    Write-Host ("   Mount Path : {0}" -f $mountRoot)
+    Write-Host ("   Mount Root : {0}" -f $mountRoot)
     Write-Host ("   Mount Point: {0}" -f $mountPoint)
 
     $isMounted = wsl -d docker-desktop mount | Select-String "$mountPoint"
@@ -54,22 +54,22 @@ function Mount-NAS {
         return
     }
 
-    # The mount command we’ll execute
     $mountCmd = "mount -t cifs '//$nasServer/$nasShare' '$mountRoot' -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino"
     Write-Host "`n[Debug] Running mount command inside docker-desktop:" -ForegroundColor Cyan
     Write-Host "   $mountCmd" -ForegroundColor White
 
     for ($try = 1; $try -le 3; $try++) {
         Write-Host "Attempt $try mounting //$nasServer/$nasShare..."
-        wsl -d docker-desktop -- sh -c "$mountCmd" 2>$null
-
-        # Verify
-        $mounted = wsl -d docker-desktop -- ls "$mountPoint/famflix/media/movies" 2>$null
-        if ($mounted) {
-            Write-Host "[OK] NAS mounted at $mountPoint" -ForegroundColor Green
-            return
+        $result = wsl -d docker-desktop -- sh -c "$mountCmd 2>&1"
+        if ($LASTEXITCODE -eq 0) {
+            $mounted = wsl -d docker-desktop -- ls "$mountPoint/famflix/media/movies" 2>$null
+            if ($mounted) {
+                Write-Host "[OK] NAS mounted at $mountPoint" -ForegroundColor Green
+                return
+            }
         }
-        Write-Host "[Warn] Mount failed (try $try), retrying in 3s..." -ForegroundColor Yellow
+        Write-Host "[Warn] Mount failed (try $try). Output:" -ForegroundColor Yellow
+        Write-Host $result
         Start-Sleep -Seconds 3
     }
 
