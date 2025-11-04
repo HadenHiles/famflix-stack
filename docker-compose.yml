@@ -42,7 +42,7 @@ services:
     volumes:
       - ./configs/qbittorrent:/config
       - ./pia:/pia-shared:ro
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -107,7 +107,7 @@ services:
     volumes:
       - ./configs/sabnzbd:/config
       - ./configs/seedlink/scripts:/downloads/scripts:ro
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -154,7 +154,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sonarr:/config
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/data/complete"
       - "${MEDIA_BASE}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
@@ -171,7 +171,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/radarr:/config
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/data/complete"
       - "${MEDIA_BASE}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
@@ -193,6 +193,7 @@ services:
   unmanic:
     image: josh5/unmanic:latest
     container_name: unmanic
+    runtime: nvidia
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -217,7 +218,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/media/movies:/movies"
       - "${MEDIA_BASE}/media/tv:/tv"
     ports:
@@ -256,7 +257,13 @@ services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
-    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "32400:32400/tcp"
       - "1900:1900/udp"
@@ -275,7 +282,7 @@ services:
     volumes:
       - ./configs/plex:/config
       - ./transcode_tmp:/transcode
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -336,7 +343,7 @@ services:
       - STOP_RATIO=${STOP_RATIO}
     volumes:
       - "${MEDIA_BASE}/media:/downloads/complete"
-      - "${MEDIA_BASE}/media:/data/media"
+      - "${MEDIA_BASE}/media:/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     restart: unless-stopped
