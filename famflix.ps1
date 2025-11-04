@@ -53,6 +53,9 @@ function Invoke-Sudo($command) {
     return (wsl -d $wslDistro -- bash -lc "echo '$global:sudoPassPlain' | sudo -S bash -lc '$escaped'")
 }
 
+Write-Host "[Prep] Cleaning any stale Docker Desktop bind mounts..." -ForegroundColor DarkYellow
+Invoke-Sudo "rm -rf /mnt/wsl/docker-desktop-bind-mounts/Ubuntu/* /mnt/wsl/docker-desktop-bind-mounts/default/* 2>/dev/null || true"
+
 # --- Check Docker Engine in Ubuntu ---
 function Wait-Docker {
     Write-Host "`n[Init] Checking Docker Engine in WSL ($wslDistro)..." -ForegroundColor Cyan
@@ -122,6 +125,23 @@ function Mount-Volumes {
         } else {
             Write-Host "[Error] Failed to mount F: drive even after retry." -ForegroundColor Red
         }
+
+        # --- Bind external F: drive into Docker-visible path ---
+        Write-Host "[Debug] Binding F:/famflix into Docker-visible path..." -ForegroundColor Yellow
+        Invoke-Sudo "mkdir -p /mnt/wsl/shared-nas/f"
+        Invoke-Sudo "mkdir -p '$sharedF'"
+        Invoke-Sudo "mount --bind /mnt/f/famflix '$sharedF'"
+
+        # --- Verify bind mount worked ---
+        $bindFCheck = Invoke-WSL ("if mountpoint -q " + $sharedF + "; then echo ok; else echo fail; fi")
+        if ($bindFCheck -and $bindFCheck.Trim() -eq 'ok') {
+            Write-Host "[OK] Bind mount verified at $sharedF." -ForegroundColor Green
+        } else {
+            Write-Host "[Error] Bind mount failed for $sharedF." -ForegroundColor Red
+            Invoke-WSL "mount | grep famflix"
+            exit 1
+        }
+
     }
 
     # --- Verification ---

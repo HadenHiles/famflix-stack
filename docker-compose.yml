@@ -42,7 +42,7 @@ services:
     volumes:
       - ./configs/qbittorrent:/config
       - ./pia:/pia-shared:ro
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -107,7 +107,7 @@ services:
     volumes:
       - ./configs/sabnzbd:/config
       - ./configs/seedlink/scripts:/downloads/scripts:ro
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -154,7 +154,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/sonarr:/config
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
@@ -171,7 +171,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/radarr:/config
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
@@ -201,10 +201,10 @@ services:
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
       - ./configs/unmanic:/config
-      - "${MEDIA_BASE}/media/movies:/library/movies"
-      - "${MEDIA_BASE}/media/tv:/library/tv"
+      - "${MEDIA_BASE}/movies:/library/movies"
+      - "${MEDIA_BASE}/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
-      - "${MEDIA_BASE}/media:/media"          # optional but fixes plugin issues
+      - "${MEDIA_BASE}:/media"          # optional but fixes plugin issues
       - /dev/dri:/dev/dri
     ports:
       - 8888:8888
@@ -220,9 +220,9 @@ services:
       - TZ=${TZ}
     volumes:
       - ./configs/bazarr:/config
-      - "${MEDIA_BASE}/media:/media"
-      - "${MEDIA_BASE}/media/movies:/movies"
-      - "${MEDIA_BASE}/media/tv:/tv"
+      - "${MEDIA_BASE}:/media"
+      - "${MEDIA_BASE}/movies:/movies"
+      - "${MEDIA_BASE}/tv:/tv"
     ports:
       - 6767:6767
     networks: [ media_net ]
@@ -284,7 +284,7 @@ services:
     volumes:
       - ./configs/plex:/config
       - ./transcode_tmp:/transcode
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}:/media"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -344,8 +344,8 @@ services:
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
     volumes:
-      - "${MEDIA_BASE}/media:/downloads/complete"
-      - "${MEDIA_BASE}/media:/media"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}:/media"
       - ./configs/seedlink/scripts:/app
       - ./configs/seedlink/logs:/logs
     restart: unless-stopped
