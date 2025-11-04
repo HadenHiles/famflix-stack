@@ -155,8 +155,8 @@ services:
     volumes:
       - ./configs/sonarr:/config
       - "${MEDIA_BASE}/media:/media"
-      - "${MEDIA_BASE}/complete:/data/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/data/incomplete"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -172,8 +172,8 @@ services:
     volumes:
       - ./configs/radarr:/config
       - "${MEDIA_BASE}/media:/media"
-      - "${MEDIA_BASE}/complete:/data/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/data/incomplete"
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -204,6 +204,8 @@ services:
       - "${MEDIA_BASE}/media/movies:/library/movies"
       - "${MEDIA_BASE}/media/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
+      - "${MEDIA_BASE}/media:/media"          # optional but fixes plugin issues
+      - /dev/dri:/dev/dri
     ports:
       - 8888:8888
     networks: [ media_net ]

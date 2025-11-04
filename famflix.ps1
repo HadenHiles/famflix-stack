@@ -105,5 +105,5 @@ function Stop-Stack {
 switch ($Action) {
     'start'   { Mount-Volumes; Start-Stack }
     'stop'    { Stop-Stack; Unmount-Volumes }
-    'restart' { Stop-Stack; Unmount-Volumes; Mount-Volumes; Start-Stack }
+    # 'restart' { Stop-Stack; Unmount-Volumes; Mount-Volumes; Start-Stack }
 }
