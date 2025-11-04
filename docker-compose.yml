@@ -156,7 +156,7 @@ services:
       - ./configs/sonarr:/config
       - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/data/complete"
-      - "${MEDIA_BASE}/incomplete:/data/incomplete"
+      - "${MEDIA_BASE_EXT}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -173,7 +173,7 @@ services:
       - ./configs/radarr:/config
       - "${MEDIA_BASE}/media:/media"
       - "${MEDIA_BASE}/complete:/data/complete"
-      - "${MEDIA_BASE}/incomplete:/data/incomplete"
+      - "${MEDIA_BASE_EXT}/incomplete:/data/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
