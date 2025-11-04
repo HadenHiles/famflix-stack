@@ -1,5 +1,5 @@
 # -------------------------------------------------
-# FamFlix Media Stack — Local (HTTP) + Public (HTTPS)
+# FamFlix Media Stack — Local (HTTP) + Public (HTTPS via Cloudflare)
 # -------------------------------------------------
 {
 	email hadenhiles@gmail.com
@@ -8,6 +8,7 @@
 }
 
 # ---------- LOCAL ROUTES (HTTP ONLY) ----------
+# (Accessible within LAN / hosts file mappings only)
 
 http://plex.local {
 	@root path /
@@ -57,9 +58,12 @@ http://maintainerr.local {
 	reverse_proxy maintainerr:6246
 }
 
-# ---------- PUBLIC ROUTES (HTTPS ENABLED) ----------
+# ---------- PUBLIC ROUTES (HTTPS VIA CLOUDFLARE) ----------
+# Use internal/self-signed TLS so Caddy stops hitting Let’s Encrypt.
+# Cloudflare Tunnel handles the public HTTPS edge.
 
 plex.famflix.live {
+	tls internal
 	encode zstd gzip
 
 	@root path /
@@ -67,7 +71,7 @@ plex.famflix.live {
 
 	reverse_proxy http://plex:32400 {
 		header_up Host plex.famflix.live
-		header_up X-Real-IP remote_host
+		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-Host plex.famflix.live
 		flush_interval -1
@@ -75,13 +79,12 @@ plex.famflix.live {
 }
 
 jellyseerr.famflix.live {
-	tls {
-		ca https://acme-v02.api.letsencrypt.org/directory
-	}
-	reverse_proxy jellyseerr:5055
+	tls internal
 	encode zstd gzip
+	reverse_proxy jellyseerr:5055
 }
 
+# Redirect bare domain to Plex
 famflix.live {
 	redir https://plex.famflix.live
 }
