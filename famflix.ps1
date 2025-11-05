@@ -1,208 +1,148 @@
+<#
+.SYNOPSIS
+  Manages FamFlix Docker stack inside WSL, including proper mount setup for NAS and external drives.
+
+.USAGE
+  ./famflix.ps1 -Action start|stop|restart|status [-DryRun]
+#>
+
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('start', 'stop', 'restart')]
+    [ValidateSet('start', 'stop', 'restart', 'status')]
     [string]$Action,
     [switch]$DryRun
 )
 
-# --- CONFIG ---
-$stackPath = "/mnt/c/Users/haden/famflix-stack"
-$wslDistro = "Ubuntu"
-$mountRootNas = "/mnt/nas/famflix"
-$sharedNas    = "/mnt/wsl/shared-nas/famflix"
-$mountRootF   = "/mnt/f"
-$sharedF      = "/mnt/wsl/shared-nas/f/famflix"
-$nasServer    = "10.175.1.103"
+# -----------------------------
+# CONFIGURATION
+# -----------------------------
+$wslDistro  = "Ubuntu"
+$stackPath  = "/mnt/c/Users/haden/famflix-stack"
 
-# --- Load Secrets ---
-. "$PSScriptRoot\famflix-secrets.ps1"
+# Mount targets inside WSL
+$mountNAS   = "/mnt/nas/famflix"
+$mountEXT   = "/mnt/ext/famflix"
+$nasServer  = "10.175.1.103"
+$nasUser    = "haden"
+$nasPass    = "Hockey0709rules"
 
-# --- Quoting helpers & WSL runners ---
-function Escape-BashSingleQuotes([string]$text) {
-    $SQ = [char]39; $DQ = [char]34
-    $replacement = $SQ.ToString() + $DQ + $SQ + $DQ + $SQ
-    return ($text -replace "'", $replacement)
+# Docker project name
+$composeProject = "famflix-stack"
+
+# -----------------------------
+# UTILS
+# -----------------------------
+function Log($msg, $color="Gray") {
+    Write-Host $msg -ForegroundColor $color
 }
-
-function Invoke-WSL($cmd) {
-    if ($DryRun) {
-        Write-Host "[DRYRUN] wsl -d $wslDistro -- bash -lc $cmd" -ForegroundColor DarkGray
-        return ""
-    }
+function Run-WSL($cmd) {
+    if ($DryRun) { Log "[DRYRUN] wsl -d $wslDistro -- bash -lc '$cmd'" DarkGray; return }
     wsl -d $wslDistro -- bash -lc "$cmd"
 }
-
-# --- Request sudo password once ---
-if (-not $DryRun) {
-    $global:sudoPassword = Read-Host "Enter your Ubuntu sudo password (used once for all mount operations)" -AsSecureString
-    $global:sudoPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sudoPassword)
-    )
-} else {
-    Write-Host "[DRYRUN] Skipping sudo password prompt" -ForegroundColor DarkGray
-    $global:sudoPassPlain = ''
+function Run-Sudo($cmd) {
+    if ($DryRun) { Log "[DRYRUN] sudo $cmd" DarkGray; return }
+    Run-WSL "echo '$global:sudoPassPlain' | sudo -S bash -lc '$cmd'"
 }
-
-# --- Utility: run with sudo using stored password ---
-function Invoke-Sudo($command) {
-    if ($DryRun) {
-        Write-Host "[DRYRUN] sudo -S bash -lc $command" -ForegroundColor DarkGray
-        return ""
-    }
-    $escaped = Escape-BashSingleQuotes $command
-    return (wsl -d $wslDistro -- bash -lc "echo '$global:sudoPassPlain' | sudo -S bash -lc '$escaped'")
-}
-
-Write-Host "[Prep] Cleaning any stale Docker Desktop bind mounts..." -ForegroundColor DarkYellow
-Invoke-Sudo "rm -rf /mnt/wsl/docker-desktop-bind-mounts/Ubuntu/* /mnt/wsl/docker-desktop-bind-mounts/default/* 2>/dev/null || true"
-
-# --- Check Docker Engine in Ubuntu ---
 function Wait-Docker {
-    Write-Host "`n[Init] Checking Docker Engine in WSL ($wslDistro)..." -ForegroundColor Cyan
-    if ($DryRun) { Write-Host "[DRYRUN] Skipping Docker check" -ForegroundColor DarkGray; return }
-    $engine = Invoke-WSL "docker info --format '{{.ServerVersion}}' 2>/dev/null"
-    if ($engine) {
-        Write-Host "[OK] Docker Engine is live in Ubuntu." -ForegroundColor Green
-    } else {
-        Write-Host "[Error] Docker not available in Ubuntu." -ForegroundColor Red
-        exit 1
-    }
+    Log "`n[Check] Docker Engine availability..." Cyan
+    if ($DryRun) { Log "[DRYRUN] Skipping Docker check" DarkGray; return }
+    $engine = Run-WSL "docker info --format '{{.ServerVersion}}' 2>/dev/null"
+    if (-not $engine) { Log "[ERROR] Docker Engine not available inside WSL!" Red; exit 1 }
+    Log "[OK] Docker Engine is running ($engine)" Green
 }
 
-# --- Mount NAS + External Drive ---
+# -----------------------------
+# MOUNT HANDLERS
+# -----------------------------
 function Mount-Volumes {
-    Write-Host "`n[Mounting] NAS and F: drive into WSL ($wslDistro)..." -ForegroundColor Cyan
+    Log "`n[Mounting] NAS + External drives..." Cyan
     Wait-Docker
 
-    # --- Clean up any stale mounts first ---
-    Write-Host "[Prep] Unmounting any stale mounts..." -ForegroundColor DarkYellow
-    Invoke-Sudo "umount -f /mnt/wsl/shared-nas/famflix 2>/dev/null || true"
-    Invoke-Sudo "umount -f /mnt/nas/famflix 2>/dev/null || true"
-    Invoke-Sudo "umount -f /mnt/f 2>/dev/null || true"
-    Start-Sleep -Seconds 2
+    # --- Mount NAS ---
+    Log "[NAS] Mounting //$nasServer/famflix to $mountNAS" Yellow
+    Run-Sudo "umount -f $mountNAS 2>/dev/null || true"
+    Run-Sudo "mkdir -p $mountNAS"
+    Run-Sudo "mount -t cifs //$nasServer/famflix $mountNAS -o username=$nasUser,password=$nasPass,uid=0,gid=0,file_mode=0777,dir_mode=0777,vers=3.0"
+    $nasCheck = Run-WSL "mountpoint -q $mountNAS && echo ok || echo fail"
+    if ($nasCheck.Trim() -ne "ok") { Log "[ERROR] NAS mount failed at $mountNAS" Red; exit 1 }
+    Log "[OK] NAS mounted successfully." Green
 
-    # --- NAS ---
-    Write-Host "[Debug] Mounting NAS share..." -ForegroundColor Yellow
-    Invoke-Sudo "mkdir -p '$mountRootNas'"
-    Invoke-Sudo "mount -t cifs '//$nasServer/remote/famflix/media' '$mountRootNas' -o username=$username,password=$password,rw,vers=3.0,iocharset=utf8,file_mode=0777,dir_mode=0777,nounix,noserverino"
+    # --- Mount External Drive ---
+    Log "[EXT] Mounting external drive F: to $mountEXT" Yellow
+    Run-Sudo "umount -f $mountEXT 2>/dev/null || true"
+    Run-Sudo "mkdir -p $mountEXT"
+    # Bind via WSL shared path
+    Run-Sudo "mount --bind /mnt/wsl/shared-nas/f/famflix $mountEXT"
+    $extCheck = Run-WSL "mountpoint -q $mountEXT && echo ok || echo fail"
+    if ($extCheck.Trim() -ne "ok") { Log "[ERROR] External drive bind failed at $mountEXT" Red; exit 1 }
+    Log "[OK] External drive mounted successfully." Green
 
-    Write-Host "[Debug] Binding NAS into Docker-visible path..." -ForegroundColor Yellow
-    Invoke-Sudo "mkdir -p /mnt/wsl/shared-nas"
-    Invoke-Sudo "mkdir -p '$sharedNas'"
-    Invoke-Sudo "mount --bind '$mountRootNas' '$sharedNas'"
-
-    # --- Verify bind mount worked ---
-    $bindCheck = Invoke-WSL ("if mountpoint -q " + $sharedNas + "; then echo ok; else echo fail; fi")
-    if ($bindCheck -and $bindCheck.Trim() -eq 'ok') {
-        Write-Host "[OK] Bind mount verified at $sharedNas." -ForegroundColor Green
-    } else {
-        Write-Host "[Error] Bind mount failed for $sharedNas." -ForegroundColor Red
-        Invoke-WSL "mount | grep famflix"
-        exit 1
-    }
-
-    # --- F: Drive ---
-    Write-Host "[Debug] Mounting F: drive..." -ForegroundColor Yellow
-
-    $alreadyMounted = Invoke-WSL "mountpoint -q /mnt/f && echo 1 || echo 0"
-    if ($alreadyMounted -eq "1") {
-        Write-Host "[OK] /mnt/f already mounted - skipping remount." -ForegroundColor Green
-    } else {
-        Write-Host "[Info] /mnt/f not mounted, attempting mount..." -ForegroundColor Yellow
-        Invoke-Sudo "mkdir -p /mnt/f"
-        $mountResult = Invoke-Sudo "mount -t drvfs F: /mnt/f 2>/dev/null || echo fail"
-
-        if ($mountResult -match "fail") {
-            Write-Host "[Warn] Mount attempt failed - unmounting and retrying..." -ForegroundColor DarkYellow
-            Invoke-Sudo "umount -f /mnt/f 2>/dev/null || true"
-            Start-Sleep -Seconds 2
-            Invoke-Sudo "mount -t drvfs F: /mnt/f"
-        }
-
-        $mountedNow = Invoke-WSL "mountpoint -q /mnt/f && echo 1 || echo 0"
-        if ($mountedNow -eq "1") {
-            Write-Host "[OK] /mnt/f successfully mounted." -ForegroundColor Green
-        } else {
-            Write-Host "[Error] Failed to mount F: drive even after retry." -ForegroundColor Red
-        }
-
-        # --- Bind external F: drive into Docker-visible path ---
-        Write-Host "[Debug] Binding F:/famflix into Docker-visible path..." -ForegroundColor Yellow
-        Invoke-Sudo "mkdir -p /mnt/wsl/shared-nas/f"
-        Invoke-Sudo "mkdir -p '$sharedF'"
-        Invoke-Sudo "mount --bind /mnt/f/famflix '$sharedF'"
-
-        # --- Verify bind mount worked ---
-        $bindFCheck = Invoke-WSL ("if mountpoint -q " + $sharedF + "; then echo ok; else echo fail; fi")
-        if ($bindFCheck -and $bindFCheck.Trim() -eq 'ok') {
-            Write-Host "[OK] Bind mount verified at $sharedF." -ForegroundColor Green
-        } else {
-            Write-Host "[Error] Bind mount failed for $sharedF." -ForegroundColor Red
-            Invoke-WSL "mount | grep famflix"
-            exit 1
-        }
-
-    }
-
-    # --- Verification ---
-    Write-Host "[Verify] Checking NAS paths..." -ForegroundColor Yellow
-    $nasMovies = Invoke-WSL "ls '$sharedNas/movies' 2>/dev/null | head -5"
-    $nasTv     = Invoke-WSL "ls '$sharedNas/tv' 2>/dev/null | head -5"
-    $fMounted  = Invoke-WSL ("mountpoint -q '{0}' && echo 1 || echo 0" -f $mountRootF)
-
-    $nasOk = [bool]$nasMovies -or [bool]$nasTv
-    $fOk   = ($fMounted -eq '1')
-
-    if ($nasOk) { Write-Host "[OK] NAS content visible at $sharedNas (movies/tv)." -ForegroundColor Green } else { Write-Host "[Warn] NAS content not visible at $sharedNas." -ForegroundColor DarkYellow }
-    if ($fOk)   { Write-Host "[OK] F: mounted at $mountRootF." -ForegroundColor Green } else { Write-Host "[Warn] F: not mounted at $mountRootF." -ForegroundColor DarkYellow }
-
-    if (-not $nasOk) {
-        Write-Host "[Error] Mount verification failed for NAS." -ForegroundColor Red
-        exit 1
-    }
+    # --- Verify ---
+    Run-WSL "ls $mountNAS | head -5"
+    Run-WSL "ls $mountEXT | head -5"
 }
 
-# --- Unmount everything cleanly ---
 function Unmount-Volumes {
-    Write-Host "`n[Unmounting] NAS and F: mounts..." -ForegroundColor Cyan
-    Invoke-Sudo "umount -f /mnt/wsl/shared-nas/famflix 2>/dev/null || true"
-    Invoke-Sudo "umount -f /mnt/nas/famflix 2>/dev/null || true"
-    Invoke-Sudo "umount -f /mnt/wsl/shared-nas/f/famflix 2>/dev/null || true"
-    Invoke-Sudo "umount -f /mnt/f 2>/dev/null || true"
-    Write-Host "[OK] Unmounted all mounts cleanly." -ForegroundColor Green
+    Log "`n[Unmounting] NAS + External drives..." Cyan
+    Run-Sudo "umount -f $mountNAS 2>/dev/null || true"
+    Run-Sudo "umount -f $mountEXT 2>/dev/null || true"
+    Log "[OK] Unmounted all volumes." Green
 }
 
-# --- Start Stack ---
+# -----------------------------
+# DOCKER STACK CONTROL
+# -----------------------------
 function Start-Stack {
-    Write-Host "`n[Starting] FamFlix stack via Ubuntu Docker..." -ForegroundColor Cyan
-    if ($DryRun) {
-        Write-Host "[DRYRUN] cd '$stackPath' && docker compose up -d" -ForegroundColor DarkGray
-    } else {
-        Invoke-WSL "cd '$stackPath' && docker compose up -d"
-    }
-    Write-Host "[OK] Stack launched." -ForegroundColor Green
-    Write-Host "[Check] Listing Plex media folder..." -ForegroundColor Yellow
-    if ($DryRun) {
-        Write-Host "[DRYRUN] docker exec plex ls -al /media/movies | head" -ForegroundColor DarkGray
-    } else {
-        Invoke-WSL "docker exec plex ls -al /media/movies | head"
-    }
+    Log "`n[Starting] FamFlix stack..." Cyan
+    Run-WSL "ls '$stackPath' >/dev/null 2>&1"
+    $cmd = "docker compose -f '$stackPath/docker-compose.yml' -p $composeProject up -d"
+    if ($DryRun) { Log "[DRYRUN] $cmd" DarkGray } else { Run-WSL $cmd }
+    Log "[OK] Stack launch triggered." Green
 }
 
-# --- Stop Stack ---
 function Stop-Stack {
-    Write-Host "`n[Stopping] FamFlix stack..." -ForegroundColor Cyan
-    if ($DryRun) {
-        Write-Host "[DRYRUN] cd '$stackPath' && docker compose down" -ForegroundColor DarkGray
-    } else {
-        Invoke-WSL "cd '$stackPath' && docker compose down"
-    }
-    Write-Host "[OK] Stack stopped." -ForegroundColor Green
+    Log "`n[Stopping] FamFlix stack..." Cyan
+    $cmd = "docker compose -f '$stackPath/docker-compose.yml' -p $composeProject down"
+    if ($DryRun) { Log "[DRYRUN] $cmd" DarkGray } else { Run-WSL $cmd }
+    Log "[OK] Stack stopped." Green
 }
 
-# --- Main ---
+function Show-Status {
+    Log "`n[Status] Active Docker containers:" Cyan
+    Run-WSL "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
+}
+
+# -----------------------------
+# MAIN EXECUTION
+# -----------------------------
+if (-not $DryRun) {
+    $secure = Read-Host "Enter your Ubuntu sudo password" -AsSecureString
+    $global:sudoPassPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    )
+} else {
+    Log "[DRYRUN] Skipping sudo prompt" DarkGray
+    $global:sudoPassPlain = ""
+}
+
 switch ($Action) {
-    'start'   { Mount-Volumes; Start-Stack }
-    'stop'    { Stop-Stack; Unmount-Volumes }
-    # 'restart' { Stop-Stack; Unmount-Volumes; Mount-Volumes; Start-Stack }
+    'start' {
+        Mount-Volumes
+        Start-Stack
+        Show-Status
+    }
+    'stop' {
+        Stop-Stack
+        Unmount-Volumes
+    }
+    'restart' {
+        Stop-Stack
+        Unmount-Volumes
+        Mount-Volumes
+        Start-Stack
+        Show-Status
+    }
+    'status' {
+        Show-Status
+    }
 }

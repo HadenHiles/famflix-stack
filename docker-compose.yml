@@ -18,7 +18,7 @@ services:
       - ACTIVE_HEALTHCHECKS=1
       - LOCAL_NETWORK=192.168.0.0/16
     volumes:
-      - ./pia:/pia-shared
+      - "${STACK_BASE}/pia:/pia-shared"
       - /lib/modules:/lib/modules:ro
     ports:
       - "8082:8082/tcp" # qBittorrent WebUI (via proxy)
@@ -40,9 +40,9 @@ services:
       - TZ=${TZ}
       - WEBUI_PORT=8082
     volumes:
-      - ./configs/qbittorrent:/config
-      - ./pia:/pia-shared:ro
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/qbittorrent:/config"
+      - "${STACK_BASE}/pia:/pia-shared:ro"
+      - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -72,8 +72,8 @@ services:
     networks: [ media_net ]
     restart: unless-stopped
     volumes:
-      - ./pia:/pia-shared:ro
-      - ./scripts/pia-port-sync.sh:/pia-port-sync.sh:ro
+      - "${STACK_BASE}/pia:/pia-shared:ro"
+      - "${STACK_BASE}/scripts/pia-port-sync.sh:/pia-port-sync.sh:ro"
     environment:
       QBIT_HOST: "http://pia:8082"
       QBIT_USER: "${QBIT_USER}"
@@ -105,9 +105,9 @@ services:
       - SAB_COMPLETE_DIR=/downloads/complete
       - DISABLE_HOST_WHITELIST=1 # disable hostname check
     volumes:
-      - ./configs/sabnzbd:/config
-      - ./configs/seedlink/scripts:/downloads/scripts:ro
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/sabnzbd:/config"
+      - "${CONFIG_BASE}/configs/seedlink/scripts:/downloads/scripts:ro"
+      - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
@@ -140,7 +140,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/prowlarr:/config
+      - "${CONFIG_BASE}/configs/prowlarr:/config"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -153,8 +153,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/sonarr:/config
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/sonarr:/config"
+      - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
@@ -170,8 +170,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/radarr:/config
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/radarr:/config"
+      - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
@@ -185,7 +185,7 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ./configs/jellyseerr:/app/config
+      - "${CONFIG_BASE}/configs/jellyseerr:/app/config"
     depends_on: [ plex, sonarr, radarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -200,11 +200,11 @@ services:
       - TZ=${TZ}
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
-      - ./configs/unmanic:/config
+      - "${CONFIG_BASE}/configs/unmanic:/config"
       - "${MEDIA_BASE}/movies:/library/movies"
       - "${MEDIA_BASE}/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
-      - "${MEDIA_BASE}:/media"          # optional but fixes plugin issues
+      - ${MEDIA_BASE}:/media          # optional but fixes plugin issues
       - /dev/dri:/dev/dri
     ports:
       - 8888:8888
@@ -219,8 +219,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/bazarr:/config
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/bazarr:/config"
+      - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/movies:/movies"
       - "${MEDIA_BASE}/tv:/tv"
     ports:
@@ -237,8 +237,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ./configs/tautulli:/config
-      - ./configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro
+      - "${CONFIG_BASE}/configs/tautulli:/config"
+      - "${CONFIG_BASE}/configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
     depends_on: [ plex ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -250,7 +250,7 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ./configs/maintainerr:/opt/data
+      - "${CONFIG_BASE}/configs/maintainerr:/opt/data"
     ports:
       - "6246:6246"
     restart: unless-stopped
@@ -282,9 +282,9 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
     volumes:
-      - ./configs/plex:/config
-      - ./transcode_tmp:/transcode
-      - "${MEDIA_BASE}:/media"
+      - "${CONFIG_BASE}/configs/plex:/config"
+      - "${STACK_BASE}/transcode_tmp:/transcode"
+      - ${MEDIA_BASE}:/media
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -321,9 +321,9 @@ services:
       - ACME_AGREE=true
       - EMAIL=hadenhiles@gmail.com
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/data:/data
-      - ./caddy/config:/config
+      - "${STACK_BASE}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "${STACK_BASE}/caddy/data:/data"
+      - "${STACK_BASE}/caddy/config:/config"
 
   seedlink:
     build:
@@ -345,7 +345,7 @@ services:
       - STOP_RATIO=${STOP_RATIO}
     volumes:
       - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE}:/media"
-      - ./configs/seedlink/scripts:/app
-      - ./configs/seedlink/logs:/logs
+      - ${MEDIA_BASE}:/media
+      - "${CONFIG_BASE}/configs/seedlink/scripts:/app"
+      - "${CONFIG_BASE}/configs/seedlink/logs:/logs"
     restart: unless-stopped
