@@ -40,7 +40,7 @@ services:
       - TZ=${TZ}
       - WEBUI_PORT=8082
     volumes:
-      - "${CONFIG_BASE}/configs/qbittorrent:/config"
+      - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
@@ -105,8 +105,8 @@ services:
       - SAB_COMPLETE_DIR=/downloads/complete
       - DISABLE_HOST_WHITELIST=1 # disable hostname check
     volumes:
-      - "${CONFIG_BASE}/configs/sabnzbd:/config"
-      - "${CONFIG_BASE}/configs/seedlink/scripts:/downloads/scripts:ro"
+      - "${CONFIG_BASE}/sabnzbd:/config"
+      - "${CONFIG_BASE}/seedlink/scripts:/downloads/scripts:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
@@ -140,7 +140,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/prowlarr:/config"
+      - "${CONFIG_BASE}/prowlarr:/config"
     restart: unless-stopped
     networks: [ media_net ]
 
@@ -153,7 +153,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/sonarr:/config"
+      - "${CONFIG_BASE}/sonarr:/config"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
@@ -170,7 +170,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/radarr:/config"
+      - "${CONFIG_BASE}/radarr:/config"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
@@ -185,7 +185,7 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/jellyseerr:/app/config"
+      - "${CONFIG_BASE}/jellyseerr:/app/config"
     depends_on: [ plex, sonarr, radarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -200,7 +200,7 @@ services:
       - TZ=${TZ}
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
     volumes:
-      - "${CONFIG_BASE}/configs/unmanic:/config"
+      - "${CONFIG_BASE}/unmanic:/config"
       - "${MEDIA_BASE}/movies:/library/movies"
       - "${MEDIA_BASE}/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
@@ -219,7 +219,7 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/bazarr:/config"
+      - "${CONFIG_BASE}/bazarr:/config"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/movies:/movies"
       - "${MEDIA_BASE}/tv:/tv"
@@ -237,8 +237,8 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/tautulli:/config"
-      - "${CONFIG_BASE}/configs/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
+      - "${CONFIG_BASE}/tautulli:/config"
+      - "${CONFIG_BASE}/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
     depends_on: [ plex ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -250,7 +250,7 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - "${CONFIG_BASE}/configs/maintainerr:/opt/data"
+      - "${CONFIG_BASE}/maintainerr:/opt/data"
     ports:
       - "6246:6246"
     restart: unless-stopped
@@ -259,13 +259,7 @@ services:
   plex:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    runtime: nvidia
     ports:
       - "32400:32400/tcp"
       - "1900:1900/udp"
@@ -281,8 +275,9 @@ services:
       - VERSION=docker
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+      - PLEX_CLAIM=${PLEX_CLAIM}
     volumes:
-      - "${CONFIG_BASE}/configs/plex:/config"
+      - "${CONFIG_BASE}/plex:/config"
       - "${STACK_BASE}/transcode_tmp:/transcode"
       - ${MEDIA_BASE}:/media
     restart: unless-stopped
@@ -346,6 +341,6 @@ services:
     volumes:
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - ${MEDIA_BASE}:/media
-      - "${CONFIG_BASE}/configs/seedlink/scripts:/app"
-      - "${CONFIG_BASE}/configs/seedlink/logs:/logs"
+      - "${CONFIG_BASE}/seedlink/scripts:/app"
+      - "${CONFIG_BASE}/seedlink/logs:/logs"
     restart: unless-stopped

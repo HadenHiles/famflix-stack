@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------
-# FamFlix WSL Controller (secure edition)
+# FamFlix WSL Controller (secure edition, NAS subfolder support)
 # ------------------------------------------------------------
 # Usage: ./famflix.sh start|stop|restart|status
 # ------------------------------------------------------------
@@ -59,28 +59,57 @@ mount_volumes() {
   info "Mounting NAS + External drives..."
   check_docker
 
-  # NAS
-  sudo mkdir -p "$MOUNT_NAS"
-  attempt_mount "NAS" \
-    "sudo mount -t cifs //$NAS_SERVER/famflix $MOUNT_NAS -o username=$NAS_USER,password=$NAS_PASS,uid=0,gid=0,file_mode=0777,dir_mode=0777,vers=3.0" \
-    "$MOUNT_NAS"
+  sudo mkdir -p "$MOUNT_NAS" /mnt/nas/tmpremote "$MOUNT_EXT"
 
-  # EXT
-  sudo mkdir -p "$MOUNT_EXT"
+  # --- Mount NAS parent share ---
+  info "Mounting NAS share //$NAS_SERVER/$NAS_SHARE ..."
+  attempt_mount "NAS" \
+    "sudo mount -t cifs //$NAS_SERVER/$NAS_SHARE /mnt/nas/tmpremote -o username=$NAS_USER,password=$NAS_PASS,uid=0,gid=0,file_mode=0777,dir_mode=0777,cache=none,nounix,noserverino,mfsymlinks,vers=3.0" \
+    "/mnt/nas/tmpremote"
+
+  # --- Bind famflix/media ---
+  local src_sub="/mnt/nas/tmpremote/$NAS_SUBFOLDER"
+  if [[ -d "$src_sub" ]]; then
+    info "Binding $src_sub -> $MOUNT_NAS ..."
+    sudo mount --bind "$src_sub" "$MOUNT_NAS"
+    ok "Bind mount complete."
+  else
+    error "Expected subfolder '$src_sub' not found — check NAS_SUBFOLDER or NAS path."
+  fi
+
+  # --- Verify movie/tv directories exist ---
+  if [[ ! -d "$MOUNT_NAS/movies" || ! -d "$MOUNT_NAS/tv" ]]; then
+    warn "Movies or TV subfolder missing — check your NAS directory layout."
+  fi
+
+  # --- Mount External Drive ---
+  # --- Mount External Drive (F:) ---
+  info "Checking external F: drive availability..."
+  for i in {1..10}; do
+    if [ -d "$MOUNT_SRC_EXT" ] && [ "$(ls -A "$MOUNT_SRC_EXT" 2>/dev/null)" ]; then
+      ok "External F: drive is available at $MOUNT_SRC_EXT."
+      break
+    fi
+    warn "F: drive not detected yet (try $i/10)..."
+    sleep 3
+  done
+
+  if [ ! -d "$MOUNT_SRC_EXT" ] || [ ! "$(ls -A "$MOUNT_SRC_EXT" 2>/dev/null)" ]; then
+    error "F: drive not found or empty. Plug it in or verify it's shared to WSL."
+  fi
+
   attempt_mount "External Drive (F:)" \
     "sudo mount --bind $MOUNT_SRC_EXT $MOUNT_EXT" \
     "$MOUNT_EXT"
 
   ok "Mount verification complete."
-  info "Listing top entries for verification:"
-  ls -1 "$MOUNT_NAS" | head -5 || true
-  ls -1 "$MOUNT_EXT" | head -5 || true
 }
 
 unmount_volumes() {
   info "Unmounting NAS + External drives..."
-  sudo umount -f "$MOUNT_NAS" 2>/dev/null || true
   sudo umount -f "$MOUNT_EXT" 2>/dev/null || true
+  sudo umount -f "$MOUNT_NAS" 2>/dev/null || true
+  sudo umount -f /mnt/nas/tmpremote 2>/dev/null || true
   ok "Unmount complete."
 }
 
@@ -102,12 +131,26 @@ show_status() {
   docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 }
 
+# --- Verification Helper ---
+verify_mounts() {
+  echo
+  info "🔍 Quick Mount Verification"
+  echo "------------------------------------------------------"
+  echo -e "📦 NAS Top Entries ($MOUNT_NAS):"
+  ls -lh "$MOUNT_NAS" | awk '{print "  " $9}' | head -10
+  echo
+  echo -e "💾 External Drive ($MOUNT_EXT):"
+  ls -lh "$MOUNT_EXT" | awk '{print "  " $9}' | head -10
+  echo "------------------------------------------------------"
+}
+
 # --- Main ---
 case "${1:-}" in
   start)
     mount_volumes
     start_stack
     show_status
+    verify_mounts
     ;;
   stop)
     stop_stack
@@ -119,6 +162,7 @@ case "${1:-}" in
     mount_volumes
     start_stack
     show_status
+    verify_mounts
     ;;
   status)
     show_status
