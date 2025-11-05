@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Manages FamFlix Docker stack inside WSL, including proper mount setup for NAS and external drives.
+  Manages FamFlix Docker stack inside WSL, including NAS + external drive mounts.
 
 .USAGE
   ./famflix.ps1 -Action start|stop|restart|status [-DryRun]
@@ -29,20 +29,25 @@ $nasPass    = "Hockey0709rules"
 # Docker project name
 $composeProject = "famflix-stack"
 
+# Retry config
+$maxAttempts = 3
+$retryDelay  = 3  # seconds between attempts
+
 # -----------------------------
 # UTILS
 # -----------------------------
-function Log($msg, $color="Gray") {
-    Write-Host $msg -ForegroundColor $color
-}
+function Log($msg, $color="Gray") { Write-Host $msg -ForegroundColor $color }
+
 function Run-WSL($cmd) {
     if ($DryRun) { Log "[DRYRUN] wsl -d $wslDistro -- bash -lc '$cmd'" DarkGray; return }
     wsl -d $wslDistro -- bash -lc "$cmd"
 }
+
 function Run-Sudo($cmd) {
     if ($DryRun) { Log "[DRYRUN] sudo $cmd" DarkGray; return }
     Run-WSL "echo '$global:sudoPassPlain' | sudo -S bash -lc '$cmd'"
 }
+
 function Wait-Docker {
     Log "`n[Check] Docker Engine availability..." Cyan
     if ($DryRun) { Log "[DRYRUN] Skipping Docker check" DarkGray; return }
@@ -54,30 +59,46 @@ function Wait-Docker {
 # -----------------------------
 # MOUNT HANDLERS
 # -----------------------------
+function Attempt-Mount($label, [scriptblock]$mountAction, [string]$verifyCmd) {
+    for ($i = 1; $i -le $maxAttempts; $i++) {
+        Log "[Attempt $i/$maxAttempts] Mounting $label..." Yellow
+        & $mountAction
+        $check = Run-WSL "$verifyCmd"
+        if ($check.Trim() -eq "ok") {
+            Log "[OK] $label mount succeeded on attempt $i." Green
+            return $true
+        }
+        Log "[Warn] $label mount check failed, retrying in $retryDelay s..." DarkYellow
+        Start-Sleep -Seconds $retryDelay
+    }
+    Log "[ERROR] All mount attempts for $label failed." Red
+    return $false
+}
+
 function Mount-Volumes {
     Log "`n[Mounting] NAS + External drives..." Cyan
     Wait-Docker
 
-    # --- Mount NAS ---
-    Log "[NAS] Mounting //$nasServer/famflix to $mountNAS" Yellow
-    Run-Sudo "umount -f $mountNAS 2>/dev/null || true"
-    Run-Sudo "mkdir -p $mountNAS"
-    Run-Sudo "mount -t cifs //$nasServer/famflix $mountNAS -o username=$nasUser,password=$nasPass,uid=0,gid=0,file_mode=0777,dir_mode=0777,vers=3.0"
-    $nasCheck = Run-WSL "mountpoint -q $mountNAS && echo ok || echo fail"
-    if ($nasCheck.Trim() -ne "ok") { Log "[ERROR] NAS mount failed at $mountNAS" Red; exit 1 }
-    Log "[OK] NAS mounted successfully." Green
+    # --- NAS ---
+    $nasMounted = Attempt-Mount "NAS" {
+        Run-Sudo "umount -f $mountNAS 2>/dev/null || true"
+        Run-Sudo "mkdir -p $mountNAS"
+        Run-Sudo "mount -t cifs //$nasServer/famflix $mountNAS -o username=$nasUser,password=$nasPass,uid=0,gid=0,file_mode=0777,dir_mode=0777,vers=3.0"
+    } "mountpoint -q $mountNAS && echo ok || echo fail"
 
-    # --- Mount External Drive ---
-    Log "[EXT] Mounting external drive F: to $mountEXT" Yellow
-    Run-Sudo "umount -f $mountEXT 2>/dev/null || true"
-    Run-Sudo "mkdir -p $mountEXT"
-    # Bind via WSL shared path
-    Run-Sudo "mount --bind /mnt/wsl/shared-nas/f/famflix $mountEXT"
-    $extCheck = Run-WSL "mountpoint -q $mountEXT && echo ok || echo fail"
-    if ($extCheck.Trim() -ne "ok") { Log "[ERROR] External drive bind failed at $mountEXT" Red; exit 1 }
-    Log "[OK] External drive mounted successfully." Green
+    if (-not $nasMounted) { exit 1 }
 
-    # --- Verify ---
+    # --- EXT DRIVE ---
+    $extMounted = Attempt-Mount "External Drive (F:)" {
+        Run-Sudo "umount -f $mountEXT 2>/dev/null || true"
+        Run-Sudo "mkdir -p $mountEXT"
+        Run-Sudo "mount --bind /mnt/wsl/shared-nas/f/famflix $mountEXT"
+    } "mountpoint -q $mountEXT && echo ok || echo fail"
+
+    if (-not $extMounted) { exit 1 }
+
+    # --- Verify listing ---
+    Log "[Verify] Listing first few NAS and EXT entries:" Yellow
     Run-WSL "ls $mountNAS | head -5"
     Run-WSL "ls $mountEXT | head -5"
 }
@@ -126,23 +147,8 @@ if (-not $DryRun) {
 }
 
 switch ($Action) {
-    'start' {
-        Mount-Volumes
-        Start-Stack
-        Show-Status
-    }
-    'stop' {
-        Stop-Stack
-        Unmount-Volumes
-    }
-    'restart' {
-        Stop-Stack
-        Unmount-Volumes
-        Mount-Volumes
-        Start-Stack
-        Show-Status
-    }
-    'status' {
-        Show-Status
-    }
+    'start'   { Mount-Volumes; Start-Stack; Show-Status }
+    'stop'    { Stop-Stack; Unmount-Volumes }
+    'restart' { Stop-Stack; Unmount-Volumes; Mount-Volumes; Start-Stack; Show-Status }
+    'status'  { Show-Status }
 }
