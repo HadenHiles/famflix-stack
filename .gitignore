@@ -3,8 +3,8 @@
 !dockerfile.seedlink
 !.example.env
 !.gitignore
-!famflix.ps1
-famflix-secrets.ps1
+!famflix.sh
+famflix-secrets.sh
 !Mount-famflixNAS.example.ps1
 !caddy/*
 !caddy
