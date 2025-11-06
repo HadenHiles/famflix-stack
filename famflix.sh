@@ -63,26 +63,31 @@ mount_volumes() {
 
   # --- Mount NAS parent share ---
   info "Mounting NAS share //$NAS_SERVER/$NAS_SHARE ..."
+  sudo umount -f /mnt/nas/tmpremote 2>/dev/null || true
   attempt_mount "NAS" \
     "sudo mount -t cifs //$NAS_SERVER/$NAS_SHARE /mnt/nas/tmpremote -o username=$NAS_USER,password=$NAS_PASS,uid=0,gid=0,file_mode=0777,dir_mode=0777,cache=none,nounix,noserverino,mfsymlinks,vers=3.0" \
     "/mnt/nas/tmpremote"
 
-  # --- Bind famflix/media ---
-  local src_sub="/mnt/nas/tmpremote/$NAS_SUBFOLDER"
-  if [[ -d "$src_sub" ]]; then
-    info "Binding $src_sub -> $MOUNT_NAS ..."
-    sudo mount --bind "$src_sub" "$MOUNT_NAS"
-    ok "Bind mount complete."
+  # --- Bind famflix root (canonical layout) ---
+  local src_root="/mnt/nas/tmpremote/famflix"
+  if [[ -d "$src_root/media/movies" && -d "$src_root/media/tv" ]]; then
+    info "Binding canonical FamFlix directory..."
+    sudo mount --bind "$src_root" "$MOUNT_NAS"
+    ok "Bound /mnt/nas/tmpremote/famflix → /mnt/nas/famflix"
   else
-    error "Expected subfolder '$src_sub' not found — check NAS_SUBFOLDER or NAS path."
+    error "FamFlix root layout not found at $src_root (expected media/movies + media/tv)"
   fi
 
+  # --- Clean ghost .smbdelete files ---
+  info "Cleaning stale Samba ghost files..."
+  sudo find "$MOUNT_NAS" -type f -name ".smbdelete*" -delete 2>/dev/null || true
+  ok "Ghost file cleanup complete."
+
   # --- Verify movie/tv directories exist ---
-  if [[ ! -d "$MOUNT_NAS/movies" || ! -d "$MOUNT_NAS/tv" ]]; then
+  if [[ ! -d "$MOUNT_NAS/media/movies" || ! -d "$MOUNT_NAS/media/tv" ]]; then
     warn "Movies or TV subfolder missing — check your NAS directory layout."
   fi
 
-  # --- Mount External Drive ---
   # --- Mount External Drive (F:) ---
   info "Checking external F: drive availability..."
   for i in {1..10}; do
