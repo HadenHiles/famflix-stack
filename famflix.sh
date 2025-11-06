@@ -90,9 +90,13 @@ mount_volumes() {
 
   # --- Mount External Drive (F:) ---
   info "Checking external F: drive availability..."
+  sudo umount -f "$MOUNT_EXT" 2>/dev/null || true
+  sudo mkdir -p "$MOUNT_EXT"
+
+  # Wait for /mnt/f to become accessible
   for i in {1..10}; do
     if [ -d "$MOUNT_SRC_EXT" ] && [ "$(ls -A "$MOUNT_SRC_EXT" 2>/dev/null)" ]; then
-      ok "External F: drive is available at $MOUNT_SRC_EXT."
+      ok "External F: drive detected at $MOUNT_SRC_EXT."
       break
     fi
     warn "F: drive not detected yet (try $i/10)..."
@@ -100,12 +104,15 @@ mount_volumes() {
   done
 
   if [ ! -d "$MOUNT_SRC_EXT" ] || [ ! "$(ls -A "$MOUNT_SRC_EXT" 2>/dev/null)" ]; then
-    error "F: drive not found or empty. Plug it in or verify it's shared to WSL."
+    warn "F: drive not found or empty — skipping external mount this session."
+    return 0
   fi
 
   attempt_mount "External Drive (F:)" \
     "sudo mount --bind $MOUNT_SRC_EXT $MOUNT_EXT" \
     "$MOUNT_EXT"
+
+  ok "External drive successfully bound."
 
   ok "Mount verification complete."
 }
