@@ -257,7 +257,7 @@ services:
     networks: [ media_net ]
 
   plex:
-    image: lscr.io/linuxserver/plex:latest
+    image: plexinc/pms-docker:latest
     container_name: plex
     runtime: nvidia
     ports:

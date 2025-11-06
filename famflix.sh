@@ -16,6 +16,16 @@ else
   exit 1
 fi
 
+# --- Secure Sudo Wrapper ---
+if [[ -z "${SUDO_PASS:-}" ]]; then
+  echo "[ERROR] SUDO_PASS not defined in secrets file."
+  exit 1
+fi
+
+sudo_exec() {
+  echo "$SUDO_PASS" | sudo -S "$@"
+}
+
 # --- COLORS ---
 RED="\033[0;31m"; GREEN="\033[0;32m"; YELLOW="\033[1;33m"; CYAN="\033[0;36m"; NC="\033[0m"
 
@@ -59,20 +69,20 @@ mount_volumes() {
   info "Mounting NAS + External drives..."
   check_docker
 
-  sudo mkdir -p "$MOUNT_NAS" /mnt/nas/tmpremote "$MOUNT_EXT"
+  sudo_exec mkdir -p "$MOUNT_NAS" /mnt/nas/tmpremote "$MOUNT_EXT"
 
   # --- Mount NAS parent share ---
   info "Mounting NAS share //$NAS_SERVER/$NAS_SHARE ..."
-  sudo umount -f /mnt/nas/tmpremote 2>/dev/null || true
+  sudo_exec umount -f /mnt/nas/tmpremote 2>/dev/null || true
   attempt_mount "NAS" \
-    "sudo mount -t cifs //$NAS_SERVER/$NAS_SHARE /mnt/nas/tmpremote -o username=$NAS_USER,password=$NAS_PASS,uid=0,gid=0,file_mode=0777,dir_mode=0777,cache=none,nounix,noserverino,mfsymlinks,vers=3.0" \
+    "sudo_exec mount -t cifs //$NAS_SERVER/$NAS_SHARE /mnt/nas/tmpremote -o username=$NAS_USER,password=$NAS_PASS,uid=0,gid=0,file_mode=0777,dir_mode=0777,cache=none,nounix,noserverino,mfsymlinks,vers=3.0" \
     "/mnt/nas/tmpremote"
 
   # --- Bind famflix root (canonical layout) ---
   local src_root="/mnt/nas/tmpremote/famflix"
   if [[ -d "$src_root/media/movies" && -d "$src_root/media/tv" ]]; then
     info "Binding canonical FamFlix directory..."
-    sudo mount --bind "$src_root" "$MOUNT_NAS"
+    sudo_exec mount --bind "$src_root" "$MOUNT_NAS"
     ok "Bound /mnt/nas/tmpremote/famflix → /mnt/nas/famflix"
   else
     error "FamFlix root layout not found at $src_root (expected media/movies + media/tv)"
@@ -80,7 +90,7 @@ mount_volumes() {
 
   # --- Clean ghost .smbdelete files ---
   info "Cleaning stale Samba ghost files..."
-  sudo find "$MOUNT_NAS" -type f -name ".smbdelete*" -delete 2>/dev/null || true
+  sudo_exec find "$MOUNT_NAS" -type f -name ".smbdelete*" -delete 2>/dev/null || true
   ok "Ghost file cleanup complete."
 
   # --- Verify movie/tv directories exist ---
@@ -90,8 +100,8 @@ mount_volumes() {
 
   # --- Mount External Drive (F:) ---
   info "Checking external F: drive availability..."
-  sudo umount -f "$MOUNT_EXT" 2>/dev/null || true
-  sudo mkdir -p "$MOUNT_EXT"
+  sudo_exec umount -f "$MOUNT_EXT" 2>/dev/null || true
+  sudo_exec mkdir -p "$MOUNT_EXT"
 
   # Wait for /mnt/f to become accessible
   for i in {1..10}; do
@@ -109,7 +119,7 @@ mount_volumes() {
   fi
 
   attempt_mount "External Drive (F:)" \
-    "sudo mount --bind $MOUNT_SRC_EXT $MOUNT_EXT" \
+    "sudo_exec mount --bind $MOUNT_SRC_EXT $MOUNT_EXT" \
     "$MOUNT_EXT"
 
   ok "External drive successfully bound."
@@ -119,9 +129,9 @@ mount_volumes() {
 
 unmount_volumes() {
   info "Unmounting NAS + External drives..."
-  sudo umount -f "$MOUNT_EXT" 2>/dev/null || true
-  sudo umount -f "$MOUNT_NAS" 2>/dev/null || true
-  sudo umount -f /mnt/nas/tmpremote 2>/dev/null || true
+  sudo_exec umount -f "$MOUNT_EXT" 2>/dev/null || true
+  sudo_exec umount -f "$MOUNT_NAS" 2>/dev/null || true
+  sudo_exec umount -f /mnt/nas/tmpremote 2>/dev/null || true
   ok "Unmount complete."
 }
 
