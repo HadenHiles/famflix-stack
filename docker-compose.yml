@@ -256,32 +256,32 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  plex:
-    image: plexinc/pms-docker:latest
-    container_name: plex
-    runtime: nvidia
-    ports:
-      - "32400:32400/tcp"
-      - "1900:1900/udp"
-      - "32469:32469/tcp"
-      - "32410:32410/udp"
-      - "32412:32412/udp"
-      - "32413:32413/udp"
-      - "32414:32414/udp"
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-      - VERSION=docker
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-      - PLEX_CLAIM=${PLEX_CLAIM}
-    volumes:
-      - "${CONFIG_BASE}/plex:/config"
-      - "${STACK_BASE}/transcode_tmp:/transcode"
-      - ${MEDIA_BASE}:/media
-    restart: unless-stopped
-    networks: [ media_net ]
+  # plex:
+  #   image: plexinc/pms-docker:latest
+  #   container_name: plex
+  #   runtime: nvidia
+  #   ports:
+  #     - "32400:32400/tcp"
+  #     - "1900:1900/udp"
+  #     - "32469:32469/tcp"
+  #     - "32410:32410/udp"
+  #     - "32412:32412/udp"
+  #     - "32413:32413/udp"
+  #     - "32414:32414/udp"
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - TZ=${TZ}
+  #     - VERSION=docker
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+  #     - PLEX_CLAIM=${PLEX_CLAIM}
+  #   volumes:
+  #     - "${CONFIG_BASE}/plex:/config"
+  #     - "${STACK_BASE}/transcode_tmp:/transcode"
+  #     - ${MEDIA_BASE}:/media
+  #   restart: unless-stopped
+  #   networks: [ media_net ]
 
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
@@ -316,7 +316,7 @@ services:
       - ACME_AGREE=true
       - EMAIL=hadenhiles@gmail.com
     volumes:
-      - "${STACK_BASE}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "${STACK_BASE}/caddy:/etc/caddy"
       - "${STACK_BASE}/caddy/data:/data"
       - "${STACK_BASE}/caddy/config:/config"
 

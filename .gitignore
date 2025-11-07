@@ -5,6 +5,7 @@
 !.gitignore
 !famflix.sh
 famflix-secrets.sh
+!check-mounts.sh
 !Mount-famflixNAS.example.ps1
 !caddy/*
 !caddy
