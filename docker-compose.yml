@@ -178,17 +178,17 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  jellyseerr:
-    image: fallenbagel/jellyseerr:develop
-    container_name: jellyseerr
-    ports: [ "5055:5055" ]
-    environment:
-      - TZ=${TZ}
-    volumes:
-      - "${CONFIG_BASE}/jellyseerr:/app/config"
-    depends_on: [ plex, sonarr, radarr ]
-    restart: unless-stopped
-    networks: [ media_net ]
+  # jellyseerr:
+  #   image: fallenbagel/jellyseerr:develop
+  #   container_name: jellyseerr
+  #   ports: [ "5055:5055" ]
+  #   environment:
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
+  #   depends_on: [ plex, sonarr, radarr ]
+  #   restart: unless-stopped
+  #   networks: [ media_net ]
 
   unmanic:
     image: josh5/unmanic:latest
