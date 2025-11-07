@@ -178,17 +178,17 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  # jellyseerr:
-  #   image: fallenbagel/jellyseerr:develop
-  #   container_name: jellyseerr
-  #   ports: [ "5055:5055" ]
-  #   environment:
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
-  #   depends_on: [ plex, sonarr, radarr ]
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
+  jellyseerr:
+    image: fallenbagel/jellyseerr:develop
+    container_name: jellyseerr
+    ports: [ "5055:5055" ]
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - "${CONFIG_BASE}/jellyseerr:/app/config"
+    depends_on: [ sonarr, radarr ]
+    restart: unless-stopped
+    networks: [ media_net ]
 
   unmanic:
     image: josh5/unmanic:latest
@@ -228,20 +228,19 @@ services:
     networks: [ media_net ]
     restart: unless-stopped
 
-  # tautulli:
-  #   image: lscr.io/linuxserver/tautulli:latest
-  #   container_name: tautulli
-  #   ports: [ "8181:8181" ]
-  #   environment:
-  #     - PUID=${PUID}
-  #     - PGID=${PGID}
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - "${CONFIG_BASE}/tautulli:/config"
-  #     - "${CONFIG_BASE}/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
-  #   depends_on: [ plex ]
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
+  tautulli:
+    image: lscr.io/linuxserver/tautulli:latest
+    container_name: tautulli
+    ports: [ "8181:8181" ]
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - "${CONFIG_BASE}/tautulli:/config"
+      - "${CONFIG_BASE}/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
+    restart: unless-stopped
+    networks: [ media_net ]
 
   maintainerr:
     image: ghcr.io/jorenn92/maintainerr:main
