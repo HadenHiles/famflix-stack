@@ -29,29 +29,48 @@ services:
     networks:
       - media_net
 
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    container_name: qbittorrent
-    network_mode: "service:pia"
+    transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+    network_mode: "service:pia"  # use the same VPN container as SAB
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - WEBUI_PORT=8082
+      - TRANSMISSION_WEB_HOME=/combustion-release
+      - TRANSMISSION_DOWNLOAD_DIR=/downloads/complete
+      - TRANSMISSION_INCOMPLETE_DIR=/downloads/incomplete
+      - TRANSMISSION_INCOMPLETE_DIR_ENABLED=true
+      - TRANSMISSION_WATCH_DIR=/downloads/watch
+      - TRANSMISSION_WATCH_DIR_ENABLED=true
+      - TRANSMISSION_PEER_PORT=51413
+      - TRANSMISSION_PEER_PORT_RANDOM_ON_START=false
+      - TRANSMISSION_RATIO_LIMIT=5
+      - TRANSMISSION_RATIO_LIMIT_ENABLED=true
+      - TRANSMISSION_SPEED_LIMIT_UP=0
+      - TRANSMISSION_SPEED_LIMIT_UP_ENABLED=false
+      - TRANSMISSION_SPEED_LIMIT_DOWN=0
+      - TRANSMISSION_SPEED_LIMIT_DOWN_ENABLED=false
+      - TRANSMISSION_RPC_USERNAME=${QBIT_USER}
+      - TRANSMISSION_RPC_PASSWORD=${QBIT_PASS}
+      - TRANSMISSION_RPC_AUTHENTICATION_REQUIRED=true
+      - TRANSMISSION_RPC_WHITELIST_ENABLED=false
+      - TRANSMISSION_UMASK=002
     volumes:
-      - "${CONFIG_BASE}/qbittorrent:/config"
-      - "${STACK_BASE}/pia:/pia-shared:ro"
+      - "${CONFIG_BASE}/transmission:/config"
+      - "${STACK_BASE}/pia:/pia-shared:ro"  # optional, shared info with PIA
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${MEDIA_BASE}/watch:/downloads/watch"
     restart: unless-stopped
 
-  qbit-proxy:
+  transmission-proxy:
     image: nginx:alpine
-    container_name: qbit-proxy
+    container_name: transmission-proxy
     networks: [ media_net ]
-    depends_on: [ qbittorrent ]
+    depends_on: [ transmission ]
     restart: unless-stopped
     command: >
       sh -c "echo '
@@ -60,27 +79,11 @@ services:
           server {
             listen 8082;
             location / {
-              proxy_pass http://pia:8082;
+              proxy_pass http://pia:9091;
             }
           }
         }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
 
-  pia-port-sync:
-    image: python:3.12-slim
-    container_name: pia-port-sync
-    depends_on: [ pia, qbittorrent ]
-    networks: [ media_net ]
-    restart: unless-stopped
-    volumes:
-      - "${STACK_BASE}/pia:/pia-shared:ro"
-      - "${STACK_BASE}/scripts/pia-port-sync.sh:/pia-port-sync.sh:ro"
-    environment:
-      QBIT_HOST: "http://pia:8082"
-      QBIT_USER: "${QBIT_USER}"
-      QBIT_PASS: "${QBIT_PASS}"
-      PIA_PORT_FILE: "/pia-shared/port.dat"
-      SYNC_INTERVAL: "600"
-    command: [ "sh", "/pia-port-sync.sh" ]
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
@@ -178,17 +181,17 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  jellyseerr:
-    image: fallenbagel/jellyseerr:develop
-    container_name: jellyseerr
-    ports: [ "5055:5055" ]
-    environment:
-      - TZ=${TZ}
-    volumes:
-      - "${CONFIG_BASE}/jellyseerr:/app/config"
-    depends_on: [ sonarr, radarr ]
-    restart: unless-stopped
-    networks: [ media_net ]
+  # jellyseerr:
+  #   image: fallenbagel/jellyseerr:develop
+  #   container_name: jellyseerr
+  #   ports: [ "5055:5055" ]
+  #   environment:
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
+  #   depends_on: [ sonarr, radarr ]
+  #   restart: unless-stopped
+  #   networks: [ media_net ]
 
   unmanic:
     image: josh5/unmanic:latest

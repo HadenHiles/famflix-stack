@@ -1,5 +1,5 @@
 # -------------------------------------------------
-# FamFlix Media Stack — Local (HTTP) + Public (HTTPS via Cloudflare)
+# FamFlix Media Stack — Hybrid (Windows Host + Docker)
 # -------------------------------------------------
 {
 	email hadenhiles@gmail.com
@@ -8,14 +8,8 @@
 }
 
 # ---------- LOCAL ROUTES (HTTP ONLY) ----------
-# (Accessible within LAN / hosts file mappings only)
-
 http://plex.local {
-	@root path /
-	redir @root /web
-	reverse_proxy plex:32400 {
-		flush_interval -1
-	}
+	reverse_proxy http://host.docker.internal:32400
 }
 
 http://qbittorrent.local {
@@ -39,7 +33,7 @@ http://radarr.local {
 }
 
 http://jellyseerr.local {
-	reverse_proxy jellyseerr:5055
+	reverse_proxy http://host.docker.internal:5055
 }
 
 http://unmanic.local {
@@ -59,9 +53,6 @@ http://maintainerr.local {
 }
 
 # ---------- PUBLIC ROUTES (HTTPS VIA CLOUDFLARE) ----------
-# Use internal/self-signed TLS so Caddy stops hitting Let’s Encrypt.
-# Cloudflare Tunnel handles the public HTTPS edge.
-
 plex.famflix.live {
 	tls internal
 	encode zstd gzip
@@ -69,7 +60,7 @@ plex.famflix.live {
 	@root path /
 	redir @root /web
 
-	reverse_proxy http://plex:32400 {
+	reverse_proxy http://host.docker.internal:32400 {
 		header_up Host plex.famflix.live
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-Proto https
@@ -81,7 +72,17 @@ plex.famflix.live {
 jellyseerr.famflix.live {
 	tls internal
 	encode zstd gzip
-	reverse_proxy jellyseerr:5055
+
+	@root path /
+	redir @root /web
+
+	reverse_proxy http://host.docker.internal:5055 {
+		header_up Host jellyseerr.famflix.live
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host jellyseerr.famflix.live
+		flush_interval -1
+	}
 }
 
 # Redirect bare domain to Plex
