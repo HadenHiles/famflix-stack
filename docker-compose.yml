@@ -52,8 +52,8 @@ services:
       - TRANSMISSION_SPEED_LIMIT_UP_ENABLED=false
       - TRANSMISSION_SPEED_LIMIT_DOWN=0
       - TRANSMISSION_SPEED_LIMIT_DOWN_ENABLED=false
-      - TRANSMISSION_RPC_USERNAME=${QBIT_USER}
-      - TRANSMISSION_RPC_PASSWORD=${QBIT_PASS}
+      - TRANSMISSION_RPC_USERNAME=${TRANSMISSION_USER}
+      - TRANSMISSION_RPC_PASSWORD=${TRANSMISSION_PASS}
       - TRANSMISSION_RPC_AUTHENTICATION_REQUIRED=true
       - TRANSMISSION_RPC_WHITELIST_ENABLED=false
       - TRANSMISSION_UMASK=002
@@ -84,7 +84,6 @@ services:
           }
         }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
 
-
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
@@ -95,9 +94,9 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - SABNZBD_OPTS=--server-name=* --https=0
-      - QBIT_HOST=http://qbit-proxy:8082
-      - QBIT_USER=${QBIT_USER}
-      - QBIT_PASS=${QBIT_PASS}
+      - TRANSMISSION_HOST=http://qbit-proxy:8082
+      - TRANSMISSION_USER=${TRANSMISSION_USER}
+      - TRANSMISSION_PASS=${TRANSMISSION_PASS}
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
       - PROWLARR_URL=http://172.20.0.3:9696
@@ -133,6 +132,26 @@ services:
             }
           }
         }' > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""
+
+  cross-seed:
+    image: ghcr.io/cross-seed/cross-seed:latest
+    container_name: cross-seed
+    depends_on: [ transmission, prowlarr ]
+    networks: [ media_net ]
+    environment:
+      - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
+      - CROSS_SEED_PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - CROSS_SEED_TORRENT_CLIENT=transmission
+      - CROSS_SEED_TORRENT_CLIENT_URL=http://transmission-proxy:8082
+      - CROSS_SEED_TORRENT_CLIENT_USER=${TRANSMISSION_USER}
+      - CROSS_SEED_TORRENT_CLIENT_PASS=${TRANSMISSION_PASS}
+      - CROSS_SEED_DELAY=600
+      - CROSS_SEED_MATCH_MODE=hash
+      - CROSS_SEED_SAVE_DIR=/downloads/complete
+    volumes:
+      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${CONFIG_BASE}/cross-seed:/config"
+    restart: unless-stopped
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -181,17 +200,6 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  # jellyseerr:
-  #   image: fallenbagel/jellyseerr:develop
-  #   container_name: jellyseerr
-  #   ports: [ "5055:5055" ]
-  #   environment:
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
-  #   depends_on: [ sonarr, radarr ]
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
 
   unmanic:
     image: josh5/unmanic:latest
@@ -321,28 +329,3 @@ services:
       - "${STACK_BASE}/caddy:/etc/caddy"
       - "${STACK_BASE}/caddy/data:/data"
       - "${STACK_BASE}/caddy/config:/config"
-
-  seedlink:
-    build:
-      context: .
-      dockerfile: dockerfile.seedlink
-    container_name: seedlink
-    networks: [ media_net ]
-    depends_on: [ qbittorrent, sabnzbd ]
-    environment:
-      - QBIT_HOST=http://qbit-proxy:8082
-      - QBIT_USER=${QBIT_USER}
-      - QBIT_PASS=${QBIT_PASS}
-      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
-      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-      - PROWLARR_URL=http://prowlarr:9696
-      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-      - MILKIE_COOKIE=${MILKIE_COOKIE}
-      - MAX_PEERS=${MAX_PEERS}
-      - STOP_RATIO=${STOP_RATIO}
-    volumes:
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - ${MEDIA_BASE}:/media
-      - "${CONFIG_BASE}/seedlink/scripts:/app"
-      - "${CONFIG_BASE}/seedlink/logs:/logs"
-    restart: unless-stopped
