@@ -29,7 +29,7 @@ services:
     networks:
       - media_net
 
-    transmission:
+  transmission:
     image: lscr.io/linuxserver/transmission:latest
     container_name: transmission
     network_mode: "service:pia"  # use the same VPN container as SAB
