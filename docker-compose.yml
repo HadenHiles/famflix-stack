@@ -138,6 +138,8 @@ services:
     container_name: cross-seed
     depends_on: [ transmission, prowlarr ]
     networks: [ media_net ]
+    ports:
+      - "2468:2468"
     environment:
       - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
       - CROSS_SEED_PROWLARR_API_KEY=${PROWLARR_API_KEY}
@@ -313,19 +315,19 @@ services:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
     networks: [ media_net ]
 
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    networks:
-      - media_net
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - ACME_AGREE=true
-      - EMAIL=hadenhiles@gmail.com
-    volumes:
-      - "${STACK_BASE}/caddy:/etc/caddy"
-      - "${STACK_BASE}/caddy/data:/data"
-      - "${STACK_BASE}/caddy/config:/config"
+  # caddy:
+  #   image: caddy:latest
+  #   container_name: caddy
+  #   restart: unless-stopped
+  #   networks:
+  #     - media_net
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   environment:
+  #     - ACME_AGREE=true
+  #     - EMAIL=hadenhiles@gmail.com
+  #   volumes:
+  #     - "${STACK_BASE}/caddy:/etc/caddy"
+  #     - "${STACK_BASE}/caddy/data:/data"
+  #     - "${STACK_BASE}/caddy/config:/config"

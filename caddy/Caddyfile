@@ -12,12 +12,16 @@ http://plex.local {
 	reverse_proxy http://host.docker.internal:32400
 }
 
-http://qbittorrent.local {
-	reverse_proxy qbit-proxy:8082
+http://transmission.local {
+	reverse_proxy transmission-proxy:8082
 }
 
 http://sabnzbd.local {
 	reverse_proxy sab-proxy:8080
+}
+
+http://cross-seed.local {
+	reverse_proxy cross-seed:2468
 }
 
 http://prowlarr.local {
@@ -50,42 +54,4 @@ http://tautulli.local {
 
 http://maintainerr.local {
 	reverse_proxy maintainerr:6246
-}
-
-# ---------- PUBLIC ROUTES (HTTPS VIA CLOUDFLARE) ----------
-plex.famflix.live {
-	tls internal
-	encode zstd gzip
-
-	@root path /
-	redir @root /web
-
-	reverse_proxy http://host.docker.internal:32400 {
-		header_up Host plex.famflix.live
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host plex.famflix.live
-		flush_interval -1
-	}
-}
-
-jellyseerr.famflix.live {
-	tls internal
-	encode zstd gzip
-
-	@root path /
-	redir @root /web
-
-	reverse_proxy http://host.docker.internal:5055 {
-		header_up Host jellyseerr.famflix.live
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Host jellyseerr.famflix.live
-		flush_interval -1
-	}
-}
-
-# Redirect bare domain to Plex
-famflix.live {
-	redir https://plex.famflix.live
 }
