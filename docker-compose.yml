@@ -6,6 +6,7 @@ services:
   pia:
     image: ghcr.io/thrnz/docker-wireguard-pia:latest
     container_name: pia
+    hostname: pia
     cap_add: [ NET_ADMIN ]
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
@@ -21,24 +22,28 @@ services:
       - "${STACK_BASE}/pia:/pia-shared"
       - /lib/modules:/lib/modules:ro
     ports:
-      - "8082:8082/tcp" # qBittorrent WebUI (via proxy)
-      - "8080:8080/tcp" # SABnzbd WebUI (via proxy)
+      - "0.0.0.0:8080:8090/tcp"  # SAB proxy
+      - "0.0.0.0:8082:8091/tcp"  # Transmission proxy
       - "6881:6881/tcp"
       - "6881:6881/udp"
     restart: unless-stopped
     networks:
       - media_net
+    healthcheck:
+      test: ["CMD-SHELL", "ping -c1 google.com || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   transmission:
     image: lscr.io/linuxserver/transmission:latest
     container_name: transmission
-    network_mode: "service:pia"  # use the same VPN container as SAB
+    network_mode: container:pia
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - TRANSMISSION_WEB_HOME=/combustion-release
       - TRANSMISSION_DOWNLOAD_DIR=/downloads/complete
       - TRANSMISSION_INCOMPLETE_DIR=/downloads/incomplete
       - TRANSMISSION_INCOMPLETE_DIR_ENABLED=true
@@ -48,10 +53,6 @@ services:
       - TRANSMISSION_PEER_PORT_RANDOM_ON_START=false
       - TRANSMISSION_RATIO_LIMIT=5
       - TRANSMISSION_RATIO_LIMIT_ENABLED=true
-      - TRANSMISSION_SPEED_LIMIT_UP=0
-      - TRANSMISSION_SPEED_LIMIT_UP_ENABLED=false
-      - TRANSMISSION_SPEED_LIMIT_DOWN=0
-      - TRANSMISSION_SPEED_LIMIT_DOWN_ENABLED=false
       - TRANSMISSION_RPC_USERNAME=${TRANSMISSION_USER}
       - TRANSMISSION_RPC_PASSWORD=${TRANSMISSION_PASS}
       - TRANSMISSION_RPC_AUTHENTICATION_REQUIRED=true
@@ -59,53 +60,74 @@ services:
       - TRANSMISSION_UMASK=002
     volumes:
       - "${CONFIG_BASE}/transmission:/config"
-      - "${STACK_BASE}/pia:/pia-shared:ro"  # optional, shared info with PIA
+      - "${STACK_BASE}/pia:/pia-shared:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
       - "${MEDIA_BASE}/watch:/downloads/watch"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9091 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   transmission-proxy:
     image: nginx:alpine
     container_name: transmission-proxy
-    networks: [ media_net ]
+    network_mode: service:pia
     depends_on: [ transmission ]
     restart: unless-stopped
     command: >
       sh -c "echo '
-        events {}
-        http {
-          server {
-            listen 8082;
-            location / {
-              proxy_pass http://pia:9091;
-            }
+      events {}
+      http {
+        server {
+          listen 8091;
+          location / {
+            proxy_pass http://127.0.0.1:9091;
+            proxy_set_header Host $$host;
+            proxy_set_header X-Real-IP $$remote_addr;
           }
-        }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+        }
+      }' > /etc/nginx/nginx.conf &&
+      nginx -t &&
+      exec nginx -g 'daemon off;'"
+
+  transmission-gateway:
+    image: nginx:alpine
+    container_name: transmission-gateway
+    hostname: transmission-gateway
+    depends_on: [ transmission-proxy ]
+    networks: [ media_net ]
+    restart: unless-stopped
+    command: >
+      sh -c "echo '
+      events {}
+      http {
+        server {
+          listen 8091;
+          location / {
+            proxy_pass http://pia:8091;
+          }
+        }
+      }' > /etc/nginx/nginx.conf &&
+      nginx -t &&
+      exec nginx -g 'daemon off;'"
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
-    network_mode: "service:pia" # ✅ behind the VPN
+    network_mode: container:pia
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - SABNZBD_OPTS=--server-name=* --https=0
-      - TRANSMISSION_HOST=http://qbit-proxy:8082
-      - TRANSMISSION_USER=${TRANSMISSION_USER}
-      - TRANSMISSION_PASS=${TRANSMISSION_PASS}
-      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
-      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
-      - PROWLARR_URL=http://172.20.0.3:9696
+      - SABNZBD_OPTS=--server 0.0.0.0:8080 --https=0 --ipv6 0
+      - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-      - MILKIE_COOKIE=${MILKIE_COOKIE}
-      - MAX_PEERS=${MAX_PEERS}
-      - STOP_RATIO=${STOP_RATIO}
-      - SAB_COMPLETE_DIR=/downloads/complete
-      - DISABLE_HOST_WHITELIST=1 # disable hostname check
+      - DISABLE_HOST_WHITELIST=1
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - "${CONFIG_BASE}/seedlink/scripts:/downloads/scripts:ro"
@@ -113,29 +135,59 @@ services:
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
 
   sab-proxy:
     image: nginx:alpine
     container_name: sab-proxy
-    networks: [ media_net ]
+    network_mode: service:pia
     depends_on: [ sabnzbd ]
     restart: unless-stopped
     command: >
       sh -c "echo '
-        events {}
-        http {
-          server {
-            listen 8080;
-            location / {
-              proxy_set_header Host 127.0.0.1;
-              proxy_pass http://pia:8080;
-            }
+      events {}
+      http {
+        server {
+          listen 8090;
+          location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host $$host;
+            proxy_set_header X-Real-IP $$remote_addr;
           }
-        }' > /etc/nginx/nginx.conf && nginx -g \"daemon off;\""
+        }
+      }' > /etc/nginx/nginx.conf &&
+      nginx -t &&
+      exec nginx -g 'daemon off;'"
+
+  sab-gateway:
+    image: nginx:alpine
+    container_name: sab-gateway
+    hostname: sab-gateway
+    depends_on: [ sab-proxy ]
+    networks: [ media_net ]
+    restart: unless-stopped
+    command: >
+      sh -c "echo '
+      events {}
+      http {
+        server {
+          listen 8090;
+          location / {
+            proxy_pass http://pia:8090;
+          }
+        }
+      }' > /etc/nginx/nginx.conf &&
+      nginx -t &&
+      exec nginx -g 'daemon off;'"
 
   cross-seed:
     image: ghcr.io/cross-seed/cross-seed:latest
     container_name: cross-seed
+    hostname: cross-seed
     depends_on: [ transmission, prowlarr ]
     networks: [ media_net ]
     ports:
@@ -144,9 +196,7 @@ services:
       - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
       - CROSS_SEED_PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - CROSS_SEED_TORRENT_CLIENT=transmission
-      - CROSS_SEED_TORRENT_CLIENT_URL=http://transmission-proxy:8082
-      - CROSS_SEED_TORRENT_CLIENT_USER=${TRANSMISSION_USER}
-      - CROSS_SEED_TORRENT_CLIENT_PASS=${TRANSMISSION_PASS}
+      - CROSS_SEED_TORRENT_CLIENT_URL=http://transmission-gateway:8091
       - CROSS_SEED_DELAY=600
       - CROSS_SEED_MATCH_MODE=hash
       - CROSS_SEED_SAVE_DIR=/downloads/complete
@@ -158,6 +208,7 @@ services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
+    hostname: prowlarr
     ports: [ "9696:9696" ]
     environment:
       - PUID=${PUID}
@@ -171,6 +222,7 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
+    hostname: sonarr
     ports: [ "8989:8989" ]
     environment:
       - PUID=${PUID}
@@ -188,6 +240,7 @@ services:
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
+    hostname: radarr
     ports: [ "7878:7878" ]
     environment:
       - PUID=${PUID}
@@ -202,10 +255,10 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-
   unmanic:
     image: josh5/unmanic:latest
     container_name: unmanic
+    hostname: unmanic
     runtime: nvidia
     environment:
       - PUID=${PUID}
@@ -217,7 +270,7 @@ services:
       - "${MEDIA_BASE}/movies:/library/movies"
       - "${MEDIA_BASE}/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
-      - ${MEDIA_BASE}:/media          # optional but fixes plugin issues
+      - ${MEDIA_BASE}:/media
       - /dev/dri:/dev/dri
     ports:
       - 8888:8888
@@ -227,6 +280,7 @@ services:
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
+    hostname: bazarr
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -244,6 +298,7 @@ services:
   tautulli:
     image: lscr.io/linuxserver/tautulli:latest
     container_name: tautulli
+    hostname: tautulli
     ports: [ "8181:8181" ]
     environment:
       - PUID=${PUID}
@@ -258,6 +313,7 @@ services:
   maintainerr:
     image: ghcr.io/jorenn92/maintainerr:main
     container_name: maintainerr
+    hostname: maintainerr
     user: "${PUID}:${PGID}"
     environment:
       - TZ=${TZ}
@@ -268,36 +324,10 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
-  # plex:
-  #   image: plexinc/pms-docker:latest
-  #   container_name: plex
-  #   runtime: nvidia
-  #   ports:
-  #     - "32400:32400/tcp"
-  #     - "1900:1900/udp"
-  #     - "32469:32469/tcp"
-  #     - "32410:32410/udp"
-  #     - "32412:32412/udp"
-  #     - "32413:32413/udp"
-  #     - "32414:32414/udp"
-  #   environment:
-  #     - PUID=${PUID}
-  #     - PGID=${PGID}
-  #     - TZ=${TZ}
-  #     - VERSION=docker
-  #     - NVIDIA_VISIBLE_DEVICES=all
-  #     - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-  #     - PLEX_CLAIM=${PLEX_CLAIM}
-  #   volumes:
-  #     - "${CONFIG_BASE}/plex:/config"
-  #     - "${STACK_BASE}/transcode_tmp:/transcode"
-  #     - ${MEDIA_BASE}:/media
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
-
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
     container_name: cloudflare-ddns
+    hostname: cloudflare-ddns
     restart: unless-stopped
     environment:
       - API_KEY=${CF_API_KEY}
@@ -309,25 +339,9 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
+    hostname: cloudflared
     restart: unless-stopped
     command: tunnel run jellyseerr
     environment:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
     networks: [ media_net ]
-
-  # caddy:
-  #   image: caddy:latest
-  #   container_name: caddy
-  #   restart: unless-stopped
-  #   networks:
-  #     - media_net
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   environment:
-  #     - ACME_AGREE=true
-  #     - EMAIL=hadenhiles@gmail.com
-  #   volumes:
-  #     - "${STACK_BASE}/caddy:/etc/caddy"
-  #     - "${STACK_BASE}/caddy/data:/data"
-  #     - "${STACK_BASE}/caddy/config:/config"
