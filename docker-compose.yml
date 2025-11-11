@@ -1,3 +1,6 @@
+# -------------------------------------------------
+# FamFlix Media Stack — Full Updated Compose
+# -------------------------------------------------
 networks:
   media_net:
     driver: bridge
@@ -6,7 +9,6 @@ services:
   pia:
     image: ghcr.io/thrnz/docker-wireguard-pia:latest
     container_name: pia
-    hostname: pia
     cap_add: [ NET_ADMIN ]
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
@@ -22,193 +24,160 @@ services:
       - "${STACK_BASE}/pia:/pia-shared"
       - /lib/modules:/lib/modules:ro
     ports:
-      - "0.0.0.0:8080:8090/tcp"  # SAB proxy
-      - "0.0.0.0:8082:8091/tcp"  # Transmission proxy
+      - "8082:8082/tcp" # qBittorrent WebUI (via proxy)
+      - "8080:8080/tcp" # SABnzbd WebUI (via proxy)
       - "6881:6881/tcp"
       - "6881:6881/udp"
     restart: unless-stopped
-    networks:
-      - media_net
-    healthcheck:
-      test: ["CMD-SHELL", "ping -c1 google.com || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
+    networks: [ media_net ]
 
-  transmission:
-    image: lscr.io/linuxserver/transmission:latest
-    container_name: transmission
-    network_mode: container:pia
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:pia"
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - TRANSMISSION_DOWNLOAD_DIR=/downloads/complete
-      - TRANSMISSION_INCOMPLETE_DIR=/downloads/incomplete
-      - TRANSMISSION_INCOMPLETE_DIR_ENABLED=true
-      - TRANSMISSION_WATCH_DIR=/downloads/watch
-      - TRANSMISSION_WATCH_DIR_ENABLED=true
-      - TRANSMISSION_PEER_PORT=51413
-      - TRANSMISSION_PEER_PORT_RANDOM_ON_START=false
-      - TRANSMISSION_RATIO_LIMIT=5
-      - TRANSMISSION_RATIO_LIMIT_ENABLED=true
-      - TRANSMISSION_RPC_USERNAME=${TRANSMISSION_USER}
-      - TRANSMISSION_RPC_PASSWORD=${TRANSMISSION_PASS}
-      - TRANSMISSION_RPC_AUTHENTICATION_REQUIRED=true
-      - TRANSMISSION_RPC_WHITELIST_ENABLED=false
-      - TRANSMISSION_UMASK=002
+      - WEBUI_PORT=8082
     volumes:
-      - "${CONFIG_BASE}/transmission:/config"
+      - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${MEDIA_BASE}/watch:/downloads/watch"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9091 || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
 
-  transmission-proxy:
-    image: nginx:alpine
-    container_name: transmission-proxy
-    network_mode: service:pia
-    depends_on: [ transmission ]
+  pia-port-sync:
+    image: python:3.12-slim
+    container_name: pia-port-sync
+    depends_on:
+      - pia
+      - qbittorrent
+      - qbit-proxy
     restart: unless-stopped
-    command: >
-      sh -c "echo '
-      events {}
-      http {
-        server {
-          listen 8091;
-          location / {
-            proxy_pass http://127.0.0.1:9091;
-            proxy_set_header Host $$host;
-            proxy_set_header X-Real-IP $$remote_addr;
-          }
-        }
-      }' > /etc/nginx/nginx.conf &&
-      nginx -t &&
-      exec nginx -g 'daemon off;'"
-
-  transmission-gateway:
-    image: nginx:alpine
-    container_name: transmission-gateway
-    hostname: transmission-gateway
-    depends_on: [ transmission-proxy ]
-    networks: [ media_net ]
-    restart: unless-stopped
-    command: >
-      sh -c "echo '
-      events {}
-      http {
-        server {
-          listen 8091;
-          location / {
-            proxy_pass http://pia:8091;
-          }
-        }
-      }' > /etc/nginx/nginx.conf &&
-      nginx -t &&
-      exec nginx -g 'daemon off;'"
+    networks:
+      media_net:
+        aliases:
+          - qbit-proxy
+    volumes:
+      - "${STACK_BASE}/pia:/pia-shared:ro"
+      - "${STACK_BASE}/scripts/pia-port-sync.sh:/pia-port-sync.sh:ro"
+    environment:
+      QBIT_HOST: "http://qbit-proxy:8082"
+      QBIT_USER: "${QBIT_USER}"
+      QBIT_PASS: "${QBIT_PASS}"
+      PIA_PORT_FILE: "/pia-shared/port.dat"
+      SYNC_INTERVAL: "600"
+    command: sh /pia-port-sync.sh
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
-    network_mode: container:pia
+    network_mode: "service:pia"
     depends_on: [ pia ]
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - SABNZBD_OPTS=--server 0.0.0.0:8080 --https=0 --ipv6 0
+      - SABNZBD_OPTS=--server-name=* --https=0
+      - QBIT_HOST=http://qbit-proxy:8082
+      - QBIT_USER=${QBIT_USER}
+      - QBIT_PASS=${QBIT_PASS}
+      - TORRENTLEECH_UID=${TORRENTLEECH_UID}
+      - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
       - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - MILKIE_COOKIE=${MILKIE_COOKIE}
+      - MAX_PEERS=${MAX_PEERS}
+      - STOP_RATIO=${STOP_RATIO}
+      - SAB_COMPLETE_DIR=/downloads/complete
       - DISABLE_HOST_WHITELIST=1
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
-      - "${CONFIG_BASE}/seedlink/scripts:/downloads/scripts:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080 || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
+
+  qbit-proxy:
+    image: nginx:alpine
+    container_name: qbit-proxy
+    depends_on: [ qbittorrent ]
+    restart: unless-stopped
+    networks: [ media_net ]
+    entrypoint: |
+      /bin/sh -c "
+      cat >/etc/nginx/nginx.conf <<EOF
+      events {}
+      http {
+        server {
+          listen 8082;
+          location / {
+            proxy_pass http://pia:8082;
+            proxy_http_version 1.1;
+            proxy_set_header Host host;
+            proxy_set_header X-Real-IP remote_addr;
+            proxy_set_header X-Forwarded-For proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto scheme;
+            proxy_set_header Upgrade http_upgrade;
+            proxy_set_header Connection connection_upgrade;
+          }
+        }
+      }
+      EOF
+      nginx -t && exec nginx -g 'daemon off;'
+      "
 
   sab-proxy:
     image: nginx:alpine
     container_name: sab-proxy
-    network_mode: service:pia
     depends_on: [ sabnzbd ]
     restart: unless-stopped
-    command: >
-      sh -c "echo '
-      events {}
-      http {
-        server {
-          listen 8090;
-          location / {
-            proxy_pass http://127.0.0.1:8080;
-            proxy_set_header Host $$host;
-            proxy_set_header X-Real-IP $$remote_addr;
-          }
-        }
-      }' > /etc/nginx/nginx.conf &&
-      nginx -t &&
-      exec nginx -g 'daemon off;'"
-
-  sab-gateway:
-    image: nginx:alpine
-    container_name: sab-gateway
-    hostname: sab-gateway
-    depends_on: [ sab-proxy ]
     networks: [ media_net ]
-    restart: unless-stopped
-    command: >
-      sh -c "echo '
+    entrypoint: |
+      /bin/sh -c "
+      cat >/etc/nginx/nginx.conf <<EOF
       events {}
       http {
         server {
-          listen 8090;
+          listen 8080;
           location / {
-            proxy_pass http://pia:8090;
+            proxy_pass http://pia:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host host;
+            proxy_set_header X-Real-IP remote_addr;
+            proxy_set_header X-Forwarded-For proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto scheme;
           }
         }
-      }' > /etc/nginx/nginx.conf &&
-      nginx -t &&
-      exec nginx -g 'daemon off;'"
+      }
+      EOF
+      nginx -t && exec nginx -g 'daemon off;'
+      "
 
   cross-seed:
     image: ghcr.io/cross-seed/cross-seed:latest
     container_name: cross-seed
-    hostname: cross-seed
-    depends_on: [ transmission, prowlarr ]
+    restart: unless-stopped
     networks: [ media_net ]
     ports:
       - "2468:2468"
     environment:
-      - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
-      - CROSS_SEED_PROWLARR_API_KEY=${PROWLARR_API_KEY}
-      - CROSS_SEED_TORRENT_CLIENT=transmission
-      - CROSS_SEED_TORRENT_CLIENT_URL=http://transmission-gateway:8091
-      - CROSS_SEED_DELAY=600
-      - CROSS_SEED_MATCH_MODE=hash
-      - CROSS_SEED_SAVE_DIR=/downloads/complete
+      - TZ=${TZ}
+      - HOST=0.0.0.0
+      - PORT=2468
+    user: "${PUID}:${PGID}"
+    working_dir: /config
+    command: ["daemon"]
     volumes:
-      - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${CONFIG_BASE}/cross-seed:/config"
-    restart: unless-stopped
+      - "${MEDIA_BASE}/complete:/downloads/complete"
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
-    hostname: prowlarr
     ports: [ "9696:9696" ]
     environment:
       - PUID=${PUID}
@@ -222,7 +191,6 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
-    hostname: sonarr
     ports: [ "8989:8989" ]
     environment:
       - PUID=${PUID}
@@ -240,7 +208,6 @@ services:
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
-    hostname: radarr
     ports: [ "7878:7878" ]
     environment:
       - PUID=${PUID}
@@ -255,10 +222,21 @@ services:
     restart: unless-stopped
     networks: [ media_net ]
 
+  jellyseerr:
+    image: fallenbagel/jellyseerr:develop
+    container_name: jellyseerr
+    ports: [ "5055:5055" ]
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - "${CONFIG_BASE}/jellyseerr:/app/config"
+    depends_on: [ sonarr, radarr ]
+    restart: unless-stopped
+    networks: [ media_net ]
+
   unmanic:
     image: josh5/unmanic:latest
     container_name: unmanic
-    hostname: unmanic
     runtime: nvidia
     environment:
       - PUID=${PUID}
@@ -272,15 +250,13 @@ services:
       - "${MEDIA_BASE}/complete:/library/watch"
       - ${MEDIA_BASE}:/media
       - /dev/dri:/dev/dri
-    ports:
-      - 8888:8888
+    ports: [ "8888:8888" ]
     networks: [ media_net ]
     restart: unless-stopped
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
-    hostname: bazarr
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -290,15 +266,13 @@ services:
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/movies:/movies"
       - "${MEDIA_BASE}/tv:/tv"
-    ports:
-      - 6767:6767
+    ports: [ "6767:6767" ]
     networks: [ media_net ]
     restart: unless-stopped
 
   tautulli:
     image: lscr.io/linuxserver/tautulli:latest
     container_name: tautulli
-    hostname: tautulli
     ports: [ "8181:8181" ]
     environment:
       - PUID=${PUID}
@@ -313,21 +287,18 @@ services:
   maintainerr:
     image: ghcr.io/jorenn92/maintainerr:main
     container_name: maintainerr
-    hostname: maintainerr
     user: "${PUID}:${PGID}"
     environment:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/maintainerr:/opt/data"
-    ports:
-      - "6246:6246"
+    ports: [ "6246:6246" ]
     restart: unless-stopped
     networks: [ media_net ]
 
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
     container_name: cloudflare-ddns
-    hostname: cloudflare-ddns
     restart: unless-stopped
     environment:
       - API_KEY=${CF_API_KEY}
@@ -339,7 +310,6 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
-    hostname: cloudflared
     restart: unless-stopped
     command: tunnel run jellyseerr
     environment:

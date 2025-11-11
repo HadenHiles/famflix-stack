@@ -12,8 +12,8 @@ http://plex.local {
 	reverse_proxy http://host.docker.internal:32400
 }
 
-http://transmission.local {
-	reverse_proxy transmission-proxy:8082
+http://qbittorrent.local {
+	reverse_proxy qbittorrent-proxy:8082
 }
 
 http://sabnzbd.local {
