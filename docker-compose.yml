@@ -19,17 +19,18 @@ services:
       - PORT_FORWARDING=1
       - VPNDNS=1.1.1.1,9.9.9.9
       - ACTIVE_HEALTHCHECKS=1
-      - LOCAL_NETWORK=192.168.0.0/16
+      - LOCAL_NETWORK=192.168.0.0/16,172.17.0.0/16,172.18.0.0/16,172.19.0.0/16
     volumes:
       - "${STACK_BASE}/pia:/pia-shared"
       - /lib/modules:/lib/modules:ro
     ports:
-      - "8082:8082/tcp" # qBittorrent WebUI (via proxy)
-      - "8080:8080/tcp" # SABnzbd WebUI (via proxy)
       - "6881:6881/tcp"
       - "6881:6881/udp"
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      media_net:
+        aliases:
+          - pia
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -41,12 +42,15 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - WEBUI_PORT=8082
+      - QBITTORRENT__BIND_ALL_INTERFACES=true
+      - QBITTORRENT__WEBUI_HOST=0.0.0.0
     volumes:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - ${MEDIA_BASE}:/media
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
 
   pia-port-sync:
@@ -81,7 +85,7 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - SABNZBD_OPTS=--server-name=* --https=0
+      - SABNZBD_OPTS=--server 0.0.0.0:8081 --server-name=* --https=0
       - QBIT_HOST=http://qbit-proxy:8082
       - QBIT_USER=${QBIT_USER}
       - QBIT_PASS=${QBIT_PASS}
@@ -107,6 +111,8 @@ services:
     depends_on: [ qbittorrent ]
     restart: unless-stopped
     networks: [ media_net ]
+    ports:
+      - "9082:8082"     # expose only the proxy
     entrypoint: |
       /bin/sh -c "
       cat >/etc/nginx/nginx.conf <<EOF
@@ -136,6 +142,8 @@ services:
     depends_on: [ sabnzbd ]
     restart: unless-stopped
     networks: [ media_net ]
+    ports:
+      - "9080:8080"     # expose only the proxy, not SAB itself
     entrypoint: |
       /bin/sh -c "
       cat >/etc/nginx/nginx.conf <<EOF
@@ -144,7 +152,7 @@ services:
         server {
           listen 8080;
           location / {
-            proxy_pass http://pia:8080;
+            proxy_pass http://pia:8081;
             proxy_http_version 1.1;
             proxy_set_header Host host;
             proxy_set_header X-Real-IP remote_addr;
@@ -162,18 +170,25 @@ services:
     container_name: cross-seed
     restart: unless-stopped
     networks: [ media_net ]
+    depends_on: [ qbit-proxy, prowlarr ]
     ports:
       - "2468:2468"
     environment:
       - TZ=${TZ}
       - HOST=0.0.0.0
       - PORT=2468
+      # Reach qBit through proxy (inside media_net)
+      - CROSS_SEED_QBITTORRENT_URL=http://qbit-proxy:8082
+      # Reach Prowlarr directly
+      - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
+      - CROSS_SEED_API_KEY=${PROWLARR_API_KEY}
     user: "${PUID}:${PGID}"
     working_dir: /config
-    command: ["daemon"]
+    command: ["daemon", "--host", "0.0.0.0", "--port", "2468"]
     volumes:
       - "${CONFIG_BASE}/cross-seed:/config"
-      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE}:/media"
+      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -221,6 +236,23 @@ services:
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
+
+  arr-retry:
+    image: python:3.12-slim
+    container_name: arr-retry
+    restart: unless-stopped
+    networks: [ media_net ]
+    entrypoint: ["python3", "-u", "/scripts/arr-retry.py"]
+    environment:
+      SONARR_URL: "http://sonarr:8989"
+      RADARR_URL: "http://radarr:7878"
+      SONARR_API_KEY: "${SONARR_API_KEY}"
+      RADARR_API_KEY: "${RADARR_API_KEY}"
+      LOOP_INTERVAL: "900"
+      LOOKBACK_HOURS: "24"
+    volumes:
+      - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
+      - "${STACK_BASE}/arr-retry:/state"
 
   jellyseerr:
     image: fallenbagel/jellyseerr:develop
