@@ -26,7 +26,14 @@ services:
     ports:
       - "6881:6881/tcp"
       - "6881:6881/udp"
+      - "8082:8082"  # qBittorrent WebUI (proxy)
+      - "8081:8081"  # SABnzbd WebUI (proxy)
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wg", "show", "interfaces"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       media_net:
         aliases:
@@ -47,7 +54,7 @@ services:
     volumes:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
-      - ${MEDIA_BASE}:/media
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
       - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
@@ -69,7 +76,7 @@ services:
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${STACK_BASE}/scripts/pia-port-sync.sh:/pia-port-sync.sh:ro"
     environment:
-      QBIT_HOST: "http://qbit-proxy:8082"
+      QBIT_HOST: "http://pia:8082"
       QBIT_USER: "${QBIT_USER}"
       QBIT_PASS: "${QBIT_PASS}"
       PIA_PORT_FILE: "/pia-shared/port.dat"
@@ -108,60 +115,80 @@ services:
   qbit-proxy:
     image: nginx:alpine
     container_name: qbit-proxy
-    depends_on: [ qbittorrent ]
+    depends_on:
+      pia:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_started
     restart: unless-stopped
-    networks: [ media_net ]
-    ports:
-      - "9082:8082"     # expose only the proxy
+    network_mode: "service:pia"
     entrypoint: |
       /bin/sh -c "
-      cat >/etc/nginx/nginx.conf <<EOF
+      cat >/etc/nginx/nginx.conf <<'EOF'
       events {}
+
       http {
         server {
           listen 8082;
+
+          # Required for login/auth
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+
+          # websocket support
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+
+          # WebUI root
           location / {
-            proxy_pass http://pia:8082;
-            proxy_http_version 1.1;
-            proxy_set_header Host host;
-            proxy_set_header X-Real-IP remote_addr;
-            proxy_set_header X-Forwarded-For proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto scheme;
-            proxy_set_header Upgrade http_upgrade;
-            proxy_set_header Connection connection_upgrade;
+            proxy_pass http://localhost:8082;
+          }
+
+          # Static assets (MANDATORY for CSS/UI to work)
+          location ~* \.(css|js|png|svg|ico|json|woff2?)$ {
+            proxy_pass http://localhost:8082;
+            proxy_cache off;
           }
         }
       }
       EOF
+
       nginx -t && exec nginx -g 'daemon off;'
       "
 
   sab-proxy:
     image: nginx:alpine
     container_name: sab-proxy
-    depends_on: [ sabnzbd ]
+    depends_on:
+      pia:
+        condition: service_healthy
+      sabnzbd:
+        condition: service_started
     restart: unless-stopped
-    networks: [ media_net ]
-    ports:
-      - "9080:8080"     # expose only the proxy, not SAB itself
+    network_mode: "service:pia"
     entrypoint: |
       /bin/sh -c "
-      cat >/etc/nginx/nginx.conf <<EOF
+      cat >/etc/nginx/nginx.conf <<'EOF'
       events {}
+
       http {
         server {
-          listen 8080;
+          listen 8081;
+
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+
           location / {
-            proxy_pass http://pia:8081;
-            proxy_http_version 1.1;
-            proxy_set_header Host host;
-            proxy_set_header X-Real-IP remote_addr;
-            proxy_set_header X-Forwarded-For proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto scheme;
+            proxy_pass http://localhost:8081;
           }
         }
       }
       EOF
+
       nginx -t && exec nginx -g 'daemon off;'
       "
 
@@ -177,9 +204,7 @@ services:
       - TZ=${TZ}
       - HOST=0.0.0.0
       - PORT=2468
-      # Reach qBit through proxy (inside media_net)
       - CROSS_SEED_QBITTORRENT_URL=http://qbit-proxy:8082
-      # Reach Prowlarr directly
       - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
       - CROSS_SEED_API_KEY=${PROWLARR_API_KEY}
     user: "${PUID}:${PGID}"
