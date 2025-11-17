@@ -192,26 +192,27 @@ services:
       nginx -t && exec nginx -g 'daemon off;'
       "
 
-  cross-seed:
-    image: ghcr.io/cross-seed/cross-seed:latest
-    container_name: cross-seed
+  seed-cross:
+    image: seedcross:latest
+    container_name: seed-cross
     restart: unless-stopped
     networks: [ media_net ]
-    depends_on: [ qbit-proxy, prowlarr ]
+    depends_on:
+      - qbit-proxy
+      - prowlarr
     ports:
-      - "2468:2468"
+      - "7863:8000"   # 8000 inside container → 7863 outside
     environment:
       - TZ=${TZ}
-      - HOST=0.0.0.0
-      - PORT=2468
-      - CROSS_SEED_QBITTORRENT_URL=http://qbit-proxy:8082
-      - CROSS_SEED_PROWLARR_URL=http://prowlarr:9696
-      - CROSS_SEED_API_KEY=${PROWLARR_API_KEY}
-    user: "${PUID}:${PGID}"
-    working_dir: /config
-    command: ["daemon", "--host", "0.0.0.0", "--port", "2468"]
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - QBIT_HOST=http://qbit-proxy:8082
+      - QBIT_USER=${QBIT_USER}
+      - QBIT_PASS=${QBIT_PASS}
+      - PROWLARR_URL=http://prowlarr:9696
+      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
     volumes:
-      - "${CONFIG_BASE}/cross-seed:/config"
+      - "${CONFIG_BASE}/seed-cross:/app/db"
       - "${MEDIA_BASE}:/media"
       - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
 
