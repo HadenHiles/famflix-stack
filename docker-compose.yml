@@ -357,7 +357,7 @@ services:
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
     container_name: cloudflare-ddns
-    restart: unless-stopped
+    restart: unless-stoppeds
     environment:
       - API_KEY=${CF_API_KEY}
       - ZONE=famflix.live
@@ -369,7 +369,9 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     restart: unless-stopped
-    command: tunnel run jellyseerr
+    command: tunnel --config /config/config.yaml run
     environment:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
+    volumes:
+      - "${STACK_BASE}/cloudflared:/config"
     networks: [ media_net ]
