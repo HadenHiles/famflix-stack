@@ -357,7 +357,7 @@ services:
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
     container_name: cloudflare-ddns
-    restart: unless-stoppeds
+    restart: unless-stopped
     environment:
       - API_KEY=${CF_API_KEY}
       - ZONE=famflix.live
