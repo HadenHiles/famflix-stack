@@ -264,7 +264,7 @@ services:
     networks: [ media_net ]
 
   readarr:
-    image: lscr.io/linuxserver/readarr:latest
+    image: lscr.io/linuxserver/readarr:amd64-develop-version-0.3.0.2091
     container_name: readarr
     environment:
       - PUID=${PUID}
