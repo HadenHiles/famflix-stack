@@ -256,12 +256,28 @@ services:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/radarr:/config"
-      - ${MEDIA_BASE}:/media
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
+
+  readarr:
+    image: lscr.io/linuxserver/readarr:latest
+    container_name: readarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - "${CONFIG_BASE}/readarr:/config"
+      - "${MEDIA_BASE}/books:/books"
+      - "${MEDIA_BASE}/complete/books:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/incomplete/books:/downloads/incomplete"
+    ports:
+      - 8787:8787
+    restart: unless-stopped
 
   arr-retry:
     image: python:3.12-slim
