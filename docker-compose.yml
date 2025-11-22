@@ -57,7 +57,6 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
-      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
 
   pia-port-sync:
@@ -214,7 +213,6 @@ services:
     volumes:
       - "${CONFIG_BASE}/seed-cross:/app/db"
       - "${MEDIA_BASE}:/media"
-      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
