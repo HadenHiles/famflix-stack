@@ -362,9 +362,10 @@ services:
       - COOLDOWN=30
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
+      - /var/run/docker.sock:/var/run/docker.sock
     command: [
       "sh", "-c",
-      "pip install aiohttp && python /scripts/unmanic_watchdog.py"
+      "pip install aiohttp docker && python /scripts/unmanic_watchdog.py"
     ]
     networks:
       - media_net
