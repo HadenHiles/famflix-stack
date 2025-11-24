@@ -363,6 +363,9 @@ services:
       - CHECK_INTERVAL=5
       - COOLDOWN=60
       - UNMANIC_WORKERS=W0,W1
+      - TAUTULLI_NOTIFY_AGENT_ID=1              # Discord notification agent
+      - TAUTULLI_NOTIFY_SUBJECT=Unmanic Watchdog
+      - TAUTULLI_NOTIFY_BODY_PREFIX=[FamFlix Unmanic]
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
     command: >
