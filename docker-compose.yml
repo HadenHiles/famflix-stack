@@ -362,10 +362,7 @@ services:
       - UNMANIC_HOST=unmanic
       - CHECK_INTERVAL=5
       - COOLDOWN=60
-      - UNMANIC_WORKERS=W0,W1
-      - TAUTULLI_NOTIFY_AGENT_ID=1              # Discord notification agent
-      - TAUTULLI_NOTIFY_SUBJECT=Unmanic Watchdog
-      - TAUTULLI_NOTIFY_BODY_PREFIX=[FamFlix Unmanic]
+      - UNMANIC_WORKERS=W0 # W0, W1, etc. (for my setup one worker is all it can easily manage)
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
     command: >
