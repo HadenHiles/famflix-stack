@@ -350,26 +350,25 @@ services:
     restart: unless-stopped
   
   unmanic-watchdog:
-    image: python:3.10-slim
+    image: python:3.11-alpine
     container_name: unmanic-watchdog
     depends_on:
-      - tautulli
       - unmanic
+      - tautulli
     environment:
-      - TZ=${TZ}
       - TAUTULLI_URL=http://tautulli:8181
       - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
-      - UNMANIC_HOST=unmanic
       - CHECK_INTERVAL=5
-      - COOLDOWN=60
-      - UNMANIC_WORKERS=W0 # W0, W1, etc. (for my setup one worker is all it can easily manage)
+      - COOLDOWN=30
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
-    command: >
-      sh -c "pip install --no-cache-dir aiohttp==3.8.1 unmanic-api==0.0.5 && 
-             python /scripts/unmanic_watchdog.py"
+    command: [
+      "sh", "-c",
+      "pip install aiohttp && python /scripts/unmanic_watchdog.py"
+    ]
+    networks:
+      - media_net
     restart: unless-stopped
-    networks: [ media_net ]
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
