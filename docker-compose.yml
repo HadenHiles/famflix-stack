@@ -57,6 +57,7 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
 
   pia-port-sync:
@@ -347,6 +348,28 @@ services:
     ports: [ "8888:8888" ]
     networks: [ media_net ]
     restart: unless-stopped
+  
+  unmanic-watchdog:
+    image: python:3.10-slim
+    container_name: unmanic-watchdog
+    depends_on:
+      - tautulli
+      - unmanic
+    environment:
+      - TZ=${TZ}
+      - TAUTULLI_URL=http://tautulli:8181
+      - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
+      - UNMANIC_HOST=unmanic
+      - CHECK_INTERVAL=5
+      - COOLDOWN=60
+      - UNMANIC_WORKERS=W0,W1
+    volumes:
+      - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
+    command: >
+      sh -c "pip install --no-cache-dir aiohttp==3.8.1 unmanic-api==0.0.5 && 
+             python /scripts/unmanic_watchdog.py"
+    restart: unless-stopped
+    networks: [ media_net ]
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
