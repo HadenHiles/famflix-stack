@@ -338,8 +338,10 @@ services:
       - PGID=${PGID}
       - TZ=${TZ}
       - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
+      - UNMANIC_TMP_DIR=/mnt/c/unmanic-temp
     volumes:
       - "${CONFIG_BASE}/unmanic:/config"
+      - /mnt/c/unmanic-temp:/tmp/unmanic
       - "${MEDIA_BASE}/movies:/library/movies"
       - "${MEDIA_BASE}/tv:/library/tv"
       - "${MEDIA_BASE}/complete:/library/watch"
