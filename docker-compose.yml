@@ -294,17 +294,17 @@ services:
       - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
       - "${STACK_BASE}/arr-retry:/state"
 
-  jellyseerr:
-    image: fallenbagel/jellyseerr:develop
-    container_name: jellyseerr
-    ports: [ "5055:5055" ]
-    environment:
-      - TZ=${TZ}
-    volumes:
-      - "${CONFIG_BASE}/jellyseerr:/app/config"
-    depends_on: [ sonarr, radarr ]
-    restart: unless-stopped
-    networks: [ media_net ]
+  # jellyseerr:
+  #   image: fallenbagel/jellyseerr:develop
+  #   container_name: jellyseerr
+  #   ports: [ "5055:5055" ]
+  #   environment:
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
+  #   depends_on: [ sonarr, radarr ]
+  #   restart: unless-stopped
+  #   networks: [ media_net ]
 
   unmanic:
     image: josh5/unmanic:latest
