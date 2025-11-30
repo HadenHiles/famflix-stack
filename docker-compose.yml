@@ -192,29 +192,6 @@ services:
       nginx -t && exec nginx -g 'daemon off;'
       "
 
-  seed-cross:
-    image: seedcross:latest
-    container_name: seed-cross
-    restart: unless-stopped
-    networks: [ media_net ]
-    depends_on:
-      - qbit-proxy
-      - prowlarr
-    ports:
-      - "7863:8000"   # 8000 inside container → 7863 outside
-    environment:
-      - TZ=${TZ}
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - QBIT_HOST=http://qbit-proxy:8082
-      - QBIT_USER=${QBIT_USER}
-      - QBIT_PASS=${QBIT_PASS}
-      - PROWLARR_URL=http://prowlarr:9696
-      - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-    volumes:
-      - "${CONFIG_BASE}/seed-cross:/app/db"
-      - "${MEDIA_BASE}:/media"
-
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
