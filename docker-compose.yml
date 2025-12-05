@@ -55,7 +55,7 @@ services:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${MEDIA_BASE}:/media"
-      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
       - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
@@ -104,7 +104,7 @@ services:
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - ${MEDIA_BASE}:/media
-      - "${MEDIA_BASE}/complete:/downloads/complete"
+      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
     networks:
