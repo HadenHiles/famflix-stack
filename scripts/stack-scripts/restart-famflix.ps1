@@ -35,7 +35,9 @@ Write-Host "Stopping FamFlix..." -ForegroundColor Yellow
 # Wait for all containers to truly exit
 $retry = 0
 while ($retry -lt 30) {
-    $running = wsl -- bash -lc 'docker ps --format "{{.Names}}"'
+
+    # FIX: docker must run inside Ubuntu
+    $running = wsl -d Ubuntu -- bash -lc "docker ps --format '{{.Names}}'" 2>$null
 
     if (-not $running) {
         Write-Host "All containers stopped. Namespace is clean." -ForegroundColor Green
@@ -47,10 +49,16 @@ while ($retry -lt 30) {
     $retry++
 }
 
+# ============================
+# FIX: FORCE-KILL MUST RUN WHILE WSL IS STILL ALIVE
+# ============================
 if ($running) {
-    Write-Host "WARNING: Containers still running after wait period. Forcing stop." -ForegroundColor Red
-    docker kill $(docker ps -q)
+    Write-Host "WARNING: Containers still running after wait period. Forcing kill." -ForegroundColor Red
+
+    # FIX: run the kill in Ubuntu BEFORE WSL shuts down
+    wsl -d Ubuntu -- bash -lc "docker kill \$(docker ps -q)" 2>$null
 }
+# ============================
 
 Write-Host "Starting FamFlix..." -ForegroundColor Green
 & $start
