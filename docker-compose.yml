@@ -55,8 +55,8 @@ services:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${MEDIA_BASE}:/media"
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
       - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
 
@@ -104,8 +104,8 @@ services:
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - ${MEDIA_BASE}:/media
-      - "${MEDIA_BASE_EXT}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
     networks:
       - media_net
@@ -134,8 +134,8 @@ services:
     volumes:
       - "${CONFIG_BASE}/sonarr:/config"
       - ${MEDIA_BASE}:/media
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -151,49 +151,11 @@ services:
     volumes:
       - "${CONFIG_BASE}/radarr:/config"
       - "${MEDIA_BASE}:/media"
-      - "${MEDIA_BASE}/complete:/downloads/complete"
-      - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
+      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
-
-  # readarr:
-  #   image: hotio/readarr
-  #   container_name: readarr
-  #   environment:
-  #     - PUID=${PUID}
-  #     - PGID=${PGID}
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - "${CONFIG_BASE}/readarr:/config"
-  #     - "${MEDIA_BASE}/books:/books"
-  #     - "${MEDIA_BASE}/audiobooks:/audiobooks"
-  #     - "${MEDIA_BASE}/complete/books:/downloads/complete"
-  #     - "${MEDIA_BASE_EXT}/incomplete/books:/downloads/incomplete"
-  #     - "${MEDIA_BASE}/complete/audiobooks:/downloads/complete"
-  #     - "${MEDIA_BASE_EXT}/incomplete/audiobooks:/downloads/incomplete"
-  #   ports:
-  #     - 8787:8787
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
-
-  # calibre:
-  #   image: lscr.io/linuxserver/calibre-web:latest
-  #   container_name: calibre
-  #   environment:
-  #     - PUID=${PUID}
-  #     - PGID=${PGID}
-  #     - TZ=${TZ}
-  #     - DOCKER_MODS=linuxserver/mods:universal-calibre
-  #   volumes:
-  #     - ${CONFIG_BASE}/calibre-web:/config
-  #     - ${STACK_BASE}/calibre-library:/calibre
-  #     - ${MEDIA_BASE}/books:/books
-  #   ports:
-  #     - 8083:8083
-  #   networks:
-  #     - media_net
-  #   restart: unless-stopped
 
   arr-retry:
     image: python:3.12-slim
