@@ -113,86 +113,86 @@ services:
       - "${MEDIA_BASE_EXT}/incomplete:/downloads/incomplete"
     restart: unless-stopped
 
-  qbit-proxy:
-    image: nginx:alpine
-    container_name: qbit-proxy
-    depends_on:
-      pia:
-        condition: service_healthy
-      qbittorrent:
-        condition: service_started
-    restart: unless-stopped
-    network_mode: "service:pia"
-    entrypoint: |
-      /bin/sh -c "
-      cat >/etc/nginx/nginx.conf <<'EOF'
-      events {}
+  # qbit-proxy:
+  #   image: nginx:alpine
+  #   container_name: qbit-proxy
+  #   depends_on:
+  #     pia:
+  #       condition: service_healthy
+  #     qbittorrent:
+  #       condition: service_started
+  #   restart: unless-stopped
+  #   network_mode: "service:pia"
+  #   entrypoint: |
+  #     /bin/sh -c "
+  #     cat >/etc/nginx/nginx.conf <<'EOF'
+  #     events {}
 
-      http {
-        server {
-          listen 8082;
+  #     http {
+  #       server {
+  #         listen 8082;
 
-          # Required for login/auth
-          proxy_set_header Host $$host;
-          proxy_set_header X-Real-IP $$remote_addr;
-          proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $$scheme;
+  #         # Required for login/auth
+  #         proxy_set_header Host $$host;
+  #         proxy_set_header X-Real-IP $$remote_addr;
+  #         proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+  #         proxy_set_header X-Forwarded-Proto $$scheme;
 
-          # websocket support
-          proxy_set_header Upgrade $$http_upgrade;
-          proxy_set_header Connection $$connection_upgrade;
+  #         # websocket support
+  #         proxy_set_header Upgrade $$http_upgrade;
+  #         proxy_set_header Connection $$connection_upgrade;
 
-          # WebUI root
-          location / {
-            proxy_pass http://localhost:8082;
-          }
+  #         # WebUI root
+  #         location / {
+  #           proxy_pass http://localhost:8082;
+  #         }
 
-          # Static assets (MANDATORY for CSS/UI to work)
-          location ~* \.(css|js|png|svg|ico|json|woff2?)$ {
-            proxy_pass http://localhost:8082;
-            proxy_cache off;
-          }
-        }
-      }
-      EOF
+  #         # Static assets (MANDATORY for CSS/UI to work)
+  #         location ~* \.(css|js|png|svg|ico|json|woff2?)$ {
+  #           proxy_pass http://localhost:8082;
+  #           proxy_cache off;
+  #         }
+  #       }
+  #     }
+  #     EOF
 
-      nginx -t && exec nginx -g 'daemon off;'
-      "
+  #     nginx -t && exec nginx -g 'daemon off;'
+  #     "
 
-  sab-proxy:
-    image: nginx:alpine
-    container_name: sab-proxy
-    depends_on:
-      pia:
-        condition: service_healthy
-      sabnzbd:
-        condition: service_started
-    restart: unless-stopped
-    network_mode: "service:pia"
-    entrypoint: |
-      /bin/sh -c "
-      cat >/etc/nginx/nginx.conf <<'EOF'
-      events {}
+  # sab-proxy:
+  #   image: nginx:alpine
+  #   container_name: sab-proxy
+  #   depends_on:
+  #     pia:
+  #       condition: service_healthy
+  #     sabnzbd:
+  #       condition: service_started
+  #   restart: unless-stopped
+  #   network_mode: "service:pia"
+  #   entrypoint: |
+  #     /bin/sh -c "
+  #     cat >/etc/nginx/nginx.conf <<'EOF'
+  #     events {}
 
-      http {
-        server {
-          listen 8081;
+  #     http {
+  #       server {
+  #         listen 8081;
 
-          proxy_set_header Host $$host;
-          proxy_set_header X-Real-IP $$remote_addr;
-          proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $$scheme;
+  #         proxy_set_header Host $$host;
+  #         proxy_set_header X-Real-IP $$remote_addr;
+  #         proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+  #         proxy_set_header X-Forwarded-Proto $$scheme;
 
-          # SAB doesn't use websockets, so no upgrade headers needed
-          location / {
-            proxy_pass http://localhost:8081;
-          }
-        }
-      }
-      EOF
+  #         # SAB doesn't use websockets, so no upgrade headers needed
+  #         location / {
+  #           proxy_pass http://localhost:8081;
+  #         }
+  #       }
+  #     }
+  #     EOF
 
-      nginx -t && exec nginx -g 'daemon off;'
-      "
+  #     nginx -t && exec nginx -g 'daemon off;'
+  #     "
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
