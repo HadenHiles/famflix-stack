@@ -1,6 +1,7 @@
 # -------------------------------------------------
 # FamFlix Media Stack — Full Updated Compose
 # -------------------------------------------------
+name: famflix
 networks:
   media_net:
     driver: bridge
