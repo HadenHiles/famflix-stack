@@ -11,6 +11,8 @@ famflix-secrets.sh
 !caddy
 !scripts
 !scripts/*
+!scripts/stack-scripts
+!scripts/stack-scripts/*
 !configs
 !configs/seedlink
 !configs/seedlink/scripts
