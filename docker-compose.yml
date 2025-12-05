@@ -133,14 +133,14 @@ services:
           listen 8082;
 
           # Required for login/auth
-          proxy_set_header Host \$host;
-          proxy_set_header X-Real-IP \$remote_addr;
-          proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto \$scheme;
+          proxy_set_header Host $$host;
+          proxy_set_header X-Real-IP $$remote_addr;
+          proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $$scheme;
 
           # websocket support
-          proxy_set_header Upgrade \$http_upgrade;
-          proxy_set_header Connection \$connection_upgrade;
+          proxy_set_header Upgrade $$http_upgrade;
+          proxy_set_header Connection $$connection_upgrade;
 
           # WebUI root
           location / {
@@ -178,10 +178,10 @@ services:
         server {
           listen 8081;
 
-          proxy_set_header Host \$host;
-          proxy_set_header X-Real-IP \$remote_addr;
-          proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto \$scheme;
+          proxy_set_header Host $$host;
+          proxy_set_header X-Real-IP $$remote_addr;
+          proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $$scheme;
 
           # SAB doesn't use websockets, so no upgrade headers needed
           location / {
