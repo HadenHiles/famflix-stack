@@ -67,7 +67,6 @@ services:
     depends_on:
       - pia
       - qbittorrent
-      - qbit-proxy
     restart: unless-stopped
     networks:
       media_net:
