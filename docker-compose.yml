@@ -91,7 +91,11 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - SABNZBD_OPTS=--server 0.0.0.0:8081 --ipv6 0 --https=0
+      - SABNZBD__HOST=0.0.0.0
+      - SABNZBD__INET_EXPOSURE=2
+      - SABNZBD__PORT=8081
+      - SABNZBD__HTTPS=0
+      - DISABLE_HOST_WHITELIST=1
       - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
