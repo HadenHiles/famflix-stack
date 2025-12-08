@@ -96,20 +96,26 @@ services:
       - SABNZBD__PORT=8081
       - SABNZBD__HTTPS=0
       - DISABLE_HOST_WHITELIST=1
+      # Integration with Prowlarr
       - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      # Account extras
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
+      # Override complete dir inside container
       - SAB_COMPLETE_DIR=/downloads/complete
-      - DISABLE_HOST_WHITELIST=1
+
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - ${MEDIA_BASE}:/media
-      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      # --- External SSD download/unpack paths ---
+      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${SAB_DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${SAB_DOWNLOAD_BASE}/intermediate:/downloads/intermediate"
+
     restart: unless-stopped
     networks:
       - media_net
