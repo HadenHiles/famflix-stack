@@ -107,7 +107,6 @@ services:
       - STOP_RATIO=${STOP_RATIO}
       # Override complete dir inside container
       - SAB_COMPLETE_DIR=/downloads/complete
-
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - ${MEDIA_BASE}:/media
