@@ -145,6 +145,8 @@ services:
       - ${MEDIA_BASE}:/media
       - "${DOWNLOAD_BASE}/complete:/downloads/complete"
       - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${SAB_DOWNLOAD_BASE}/complete:/downloads-sab/complete"
+      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
@@ -162,6 +164,8 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${DOWNLOAD_BASE}/complete:/downloads/complete"
       - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${SAB_DOWNLOAD_BASE}/complete:/downloads-sab/complete"
+      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks: [ media_net ]
