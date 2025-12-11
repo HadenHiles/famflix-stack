@@ -1,12 +1,30 @@
 # -------------------------------------------------
-# FamFlix Media Stack — Full Updated Compose
+# FamFlix Media Stack — NAS Deployment
 # -------------------------------------------------
 name: famflix
+
 networks:
   media_net:
     driver: bridge
 
 services:
+
+  caddy:
+    image: caddy:2.7
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "9000:80"
+      - "4443:443"
+    environment:
+      - PLEX_HOST=10.175.1.111
+    volumes:
+      - "${STACK_BASE}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "${STACK_BASE}/caddy/data:/data"
+      - "${STACK_BASE}/caddy/config:/config"
+    networks:
+      - media_net
+
   pia:
     image: ghcr.io/thrnz/docker-wireguard-pia:latest
     container_name: pia
@@ -27,7 +45,7 @@ services:
     ports:
       - "6881:6881/tcp"
       - "6881:6881/udp"
-      - "8082:8082"  # qBittorrent WebUI (proxy)
+      - "8082:8082"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wg", "show", "interfaces"]
@@ -35,9 +53,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      media_net:
-        aliases:
-          - pia
+      - media_net
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -57,8 +73,8 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${DOWNLOAD_BASE}/complete:/downloads/complete"
       - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
-      - "${HANK_DOWNLOADS}/Transmission/complete:/scan"
     restart: unless-stopped
+    # Note: network inherited from pia (network_mode)
 
   pia-port-sync:
     image: python:3.12-slim
@@ -68,9 +84,7 @@ services:
       - qbittorrent
     restart: unless-stopped
     networks:
-      media_net:
-        aliases:
-          - pia-port-sync
+      - media_net
     volumes:
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${STACK_BASE}/scripts/pia-port-sync.sh:/pia-port-sync.sh:ro"
@@ -96,25 +110,18 @@ services:
       - SABNZBD__PORT=8081
       - SABNZBD__HTTPS=0
       - DISABLE_HOST_WHITELIST=1
-      # Integration with Prowlarr
       - PROWLARR_URL=http://prowlarr:9696
       - PROWLARR_API_KEY=${PROWLARR_API_KEY}
-      # Account extras
       - TORRENTLEECH_UID=${TORRENTLEECH_UID}
       - TORRENTLEECH_PASS=${TORRENTLEECH_PASS}
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
-      # Override complete dir inside container
       - SAB_COMPLETE_DIR=/downloads/complete
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
-      - ${MEDIA_BASE}:/media
-      # --- External SSD download/unpack paths ---
-      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
-      - "${SAB_DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${SAB_DOWNLOAD_BASE}/intermediate:/downloads/intermediate"
-
+      - "${MEDIA_BASE}:/media"
+      - "${SAB_DOWNLOAD_BASE}:/downloads"
     restart: unless-stopped
     networks:
       - media_net
@@ -130,7 +137,8 @@ services:
     volumes:
       - "${CONFIG_BASE}/prowlarr:/config"
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -142,14 +150,15 @@ services:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/sonarr:/config"
-      - ${MEDIA_BASE}:/media
+      - "${MEDIA_BASE}:/media"
       - "${DOWNLOAD_BASE}/complete:/downloads/complete"
       - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
       - "${SAB_DOWNLOAD_BASE}/complete:/downloads-sab/complete"
       - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -168,13 +177,13 @@ services:
       - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
     depends_on: [ prowlarr ]
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   arr-retry:
     image: python:3.12-slim
     container_name: arr-retry
     restart: unless-stopped
-    networks: [ media_net ]
     entrypoint: ["python3", "-u", "/scripts/arr-retry.py"]
     environment:
       SONARR_URL: "http://sonarr:8989"
@@ -186,47 +195,34 @@ services:
     volumes:
       - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
       - "${STACK_BASE}/arr-retry:/state"
-
-  # jellyseerr:
-  #   image: fallenbagel/jellyseerr:develop
-  #   container_name: jellyseerr
-  #   ports: [ "5055:5055" ]
-  #   environment:
-  #     - TZ=${TZ}
-  #   volumes:
-  #     - "${CONFIG_BASE}/jellyseerr:/app/config"
-  #   depends_on: [ sonarr, radarr ]
-  #   restart: unless-stopped
-  #   networks: [ media_net ]
+    networks:
+      - media_net
 
   unmanic:
     image: josh5/unmanic:latest
     container_name: unmanic
-    runtime: nvidia
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - UNMANIC_FFMPEG_ARGS=-analyzeduration 2147483647 -probesize 2147483647
-      - UNMANIC_TMP_DIR=/mnt/c/unmanic-temp
+      - UNMANIC_TMP_DIR=/tmp/unmanic
     volumes:
       - "${CONFIG_BASE}/unmanic:/config"
-      - /mnt/c/unmanic-temp:/tmp/unmanic
+      - "${STACK_BASE}/unmanic-temp:/tmp/unmanic"
       - "${MEDIA_BASE}/movies:/library/movies"
       - "${MEDIA_BASE}/tv:/library/tv"
-      - "${MEDIA_BASE}/complete:/library/watch"
-      - ${MEDIA_BASE}:/media
-      - /dev/dri:/dev/dri
+      - "${MEDIA_BASE}/watch:/library/watch"
+      - "${MEDIA_BASE}:/media"
+      - "/dev/dri:/dev/dri"
     ports: [ "8888:8888" ]
-    networks: [ media_net ]
     restart: unless-stopped
-  
+    networks:
+      - media_net
+
   unmanic-watchdog:
     image: python:3.11-alpine
     container_name: unmanic-watchdog
-    depends_on:
-      - unmanic
-      - tautulli
+    depends_on: [ unmanic, tautulli ]
     environment:
       - TAUTULLI_URL=http://tautulli:8181
       - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
@@ -235,13 +231,14 @@ services:
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
       - /var/run/docker.sock:/var/run/docker.sock
-    command: [
-      "sh", "-c",
-      "pip install aiohttp docker && python /scripts/unmanic_watchdog.py"
-    ]
+    command:
+      [
+        "sh", "-c",
+        "pip install aiohttp docker && python /scripts/unmanic_watchdog.py"
+      ]
+    restart: unless-stopped
     networks:
       - media_net
-    restart: unless-stopped
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
@@ -252,12 +249,13 @@ services:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/bazarr:/config"
-      - ${MEDIA_BASE}:/media
+      - "${MEDIA_BASE}:/media"
       - "${MEDIA_BASE}/movies:/movies"
       - "${MEDIA_BASE}/tv:/tv"
     ports: [ "6767:6767" ]
-    networks: [ media_net ]
     restart: unless-stopped
+    networks:
+      - media_net
 
   tautulli:
     image: lscr.io/linuxserver/tautulli:latest
@@ -271,7 +269,8 @@ services:
       - "${CONFIG_BASE}/tautulli:/config"
       - "${CONFIG_BASE}/plex/Library Application Support/Plex Media Server/Logs:/logs:ro"
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   maintainerr:
     image: ghcr.io/jorenn92/maintainerr:main
@@ -283,7 +282,8 @@ services:
       - "${CONFIG_BASE}/maintainerr:/opt/data"
     ports: [ "6246:6246" ]
     restart: unless-stopped
-    networks: [ media_net ]
+    networks:
+      - media_net
 
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
@@ -295,6 +295,8 @@ services:
       - SUBDOMAIN=plex
       - PROXIED=false
       - TTL=120
+    networks:
+      - media_net
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -305,4 +307,5 @@ services:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
     volumes:
       - "${STACK_BASE}/cloudflared:/config"
-    networks: [ media_net ]
+    networks:
+      - media_net
