@@ -96,6 +96,33 @@ services:
       SYNC_INTERVAL: "600"
     command: sh /pia-port-sync.sh
 
+  cross-seed:
+    image: ghcr.io/cross-seed/cross-seed:latest
+    container_name: cross-seed
+    restart: unless-stopped
+    depends_on:
+      - qbittorrent
+    networks:
+      - media_net
+    command: daemon
+    environment:
+      - CROSS_SEED_LOG_LEVEL=info
+      - CROSS_SEED_VERBOSE=true
+      - TORRENT_CLIENT=qbittorrent
+      - QBT_HOST=qbittorrent
+      - QBT_PORT=8082
+      - QBT_USERNAME=${QBIT_USER}
+      - QBT_PASSWORD=${QBIT_PASS}
+      - WATCH_DIR=/watch
+      - OUTPUT_DIR=/torrents
+      - SEARCH_INTERVAL=15m
+      - INCLUDE_SINGLE=true
+      - INCLUDE_NO_FOLDER=true
+    volumes:
+      - "${DOWNLOAD_BASE}/complete:/downloads"
+      - "${STACK_BASE}/cross-seed:/config"
+      - "${STACK_BASE}/cross-seed/torrents:/torrents"
+
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
     container_name: sabnzbd
