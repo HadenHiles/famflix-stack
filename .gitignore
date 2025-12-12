@@ -9,6 +9,7 @@ famflix-secrets.sh
 !Mount-famflixNAS.example.ps1
 !caddy/*
 !caddy
+caddy/env
 !scripts
 !scripts/*
 !scripts/stack-scripts

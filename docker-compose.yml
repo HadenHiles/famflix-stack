@@ -71,8 +71,7 @@ services:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${MEDIA_BASE}:/media"
-      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${QBIT_DOWNLOAD_BASE}:/downloads"
     restart: unless-stopped
     # Note: network inherited from pia (network_mode)
 
@@ -119,7 +118,7 @@ services:
       - INCLUDE_SINGLE=true
       - INCLUDE_NO_FOLDER=true
     volumes:
-      - "${DOWNLOAD_BASE}/complete:/downloads"
+      - "${QBIT_DOWNLOAD_BASE}/complete:/downloads"
       - "${STACK_BASE}/cross-seed:/config"
       - "${STACK_BASE}/cross-seed/torrents:/torrents"
 
@@ -178,10 +177,8 @@ services:
     volumes:
       - "${CONFIG_BASE}/sonarr:/config"
       - "${MEDIA_BASE}:/media"
-      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
-      - "${SAB_DOWNLOAD_BASE}/complete:/downloads-sab/complete"
-      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
+      - "${QBIT_DOWNLOAD_BASE}:/downloads"
+      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks:
@@ -198,10 +195,8 @@ services:
     volumes:
       - "${CONFIG_BASE}/radarr:/config"
       - "${MEDIA_BASE}:/media"
-      - "${DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
-      - "${SAB_DOWNLOAD_BASE}/complete:/downloads-sab/complete"
-      - "${SAB_DOWNLOAD_BASE}/incomplete:/downloads-sab/incomplete"
+      - "${QBIT_DOWNLOAD_BASE}:/downloads"
+      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks:
