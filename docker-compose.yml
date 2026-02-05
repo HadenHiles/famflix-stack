@@ -48,7 +48,7 @@ services:
       - "8082:8082"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wg", "show", "interfaces"]
+      test: [ "CMD", "wg", "show", "interfaces" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,7 +71,8 @@ services:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
       - "${MEDIA_BASE}:/media"
-      - "${QBIT_DOWNLOAD_BASE}:/downloads"
+      - "${QBIT_DOWNLOAD_BASE}/complete:/downloads/complete"
+      - "${QBIT_DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
     restart: unless-stopped
     # Note: network inherited from pia (network_mode)
 
@@ -103,7 +104,6 @@ services:
       - qbittorrent
     networks:
       - media_net
-    command: daemon
     environment:
       - CROSS_SEED_LOG_LEVEL=info
       - CROSS_SEED_VERBOSE=true
@@ -206,7 +206,7 @@ services:
     image: python:3.12-slim
     container_name: arr-retry
     restart: unless-stopped
-    entrypoint: ["python3", "-u", "/scripts/arr-retry.py"]
+    entrypoint: [ "python3", "-u", "/scripts/arr-retry.py" ]
     environment:
       SONARR_URL: "http://sonarr:8989"
       RADARR_URL: "http://radarr:7878"
@@ -253,11 +253,7 @@ services:
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
       - /var/run/docker.sock:/var/run/docker.sock
-    command:
-      [
-        "sh", "-c",
-        "pip install aiohttp docker && python /scripts/unmanic_watchdog.py"
-      ]
+    command: [ "sh", "-c", "pip install aiohttp docker && python /scripts/unmanic_watchdog.py" ]
     restart: unless-stopped
     networks:
       - media_net
@@ -328,6 +324,6 @@ services:
     environment:
       - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN}
     volumes:
-      - "${STACK_BASE}/cloudflared:/config"
+      - "${STACK_BASE}/cloudflared/config.yaml:/config/config.yaml:ro"
     networks:
       - media_net
