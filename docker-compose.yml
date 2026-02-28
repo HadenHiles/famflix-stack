@@ -17,7 +17,7 @@ services:
       - "9000:80"
       - "4443:443"
     environment:
-      - PLEX_HOST=10.175.1.111
+      - PLEX_HOST=192.168.8.4
     volumes:
       - "${STACK_BASE}/caddy/Caddyfile:/etc/caddy/Caddyfile:ro"
       - "${STACK_BASE}/caddy/data:/data"
@@ -95,32 +95,6 @@ services:
       PIA_PORT_FILE: "/pia-shared/port.dat"
       SYNC_INTERVAL: "600"
     command: sh /pia-port-sync.sh
-
-  cross-seed:
-    image: ghcr.io/cross-seed/cross-seed:latest
-    container_name: cross-seed
-    restart: unless-stopped
-    depends_on:
-      - qbittorrent
-    networks:
-      - media_net
-    environment:
-      - CROSS_SEED_LOG_LEVEL=info
-      - CROSS_SEED_VERBOSE=true
-      - TORRENT_CLIENT=qbittorrent
-      - QBT_HOST=qbittorrent
-      - QBT_PORT=8082
-      - QBT_USERNAME=${QBIT_USER}
-      - QBT_PASSWORD=${QBIT_PASS}
-      - WATCH_DIR=/watch
-      - OUTPUT_DIR=/torrents
-      - SEARCH_INTERVAL=15m
-      - INCLUDE_SINGLE=true
-      - INCLUDE_NO_FOLDER=true
-    volumes:
-      - "${QBIT_DOWNLOAD_BASE}/complete:/downloads"
-      - "${STACK_BASE}/cross-seed:/config"
-      - "${STACK_BASE}/cross-seed/torrents:/torrents"
 
   sabnzbd:
     image: lscr.io/linuxserver/sabnzbd:latest
