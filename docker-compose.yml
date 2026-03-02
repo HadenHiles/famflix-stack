@@ -205,9 +205,6 @@ services:
     volumes:
       - "${CONFIG_BASE}/unmanic:/config"
       - "${STACK_BASE}/unmanic-temp:/tmp/unmanic"
-      - "${MEDIA_BASE}/movies:/library/movies"
-      - "${MEDIA_BASE}/tv:/library/tv"
-      - "${MEDIA_BASE}/watch:/library/watch"
       - "${MEDIA_BASE}:/media"
       - "/dev/dri:/dev/dri"
     ports: [ "8888:8888" ]
@@ -242,8 +239,6 @@ services:
     volumes:
       - "${CONFIG_BASE}/bazarr:/config"
       - "${MEDIA_BASE}:/media"
-      - "${MEDIA_BASE}/movies:/movies"
-      - "${MEDIA_BASE}/tv:/tv"
     ports: [ "6767:6767" ]
     restart: unless-stopped
     networks:
