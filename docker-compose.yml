@@ -47,6 +47,7 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
+      - UMASK=002
       - TZ=${TZ}
       - WEBUI_PORT=8082
       - QBITTORRENT__BIND_ALL_INTERFACES=true
@@ -160,41 +161,41 @@ services:
     networks:
       - media_net
 
-  lidarr:
-    image: ghcr.io/hotio/lidarr:nightly
-    container_name: lidarr
-    ports: [ "8686:8686" ]
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    volumes:
-      - "${CONFIG_BASE}/lidarr:/config"
-      - "${MEDIA_BASE}:/media"
-      - "${QBIT_DOWNLOAD_BASE}:/downloads"
-      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
-    depends_on: [ prowlarr ]
-    restart: unless-stopped
-    networks:
-      - media_net
+  # lidarr:
+  #   image: ghcr.io/hotio/lidarr:nightly
+  #   container_name: lidarr
+  #   ports: [ "8686:8686" ]
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - "${CONFIG_BASE}/lidarr:/config"
+  #     - "${MEDIA_BASE}:/media"
+  #     - "${QBIT_DOWNLOAD_BASE}:/downloads"
+  #     - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+  #   depends_on: [ prowlarr ]
+  #   restart: unless-stopped
+  #   networks:
+  #     - media_net
 
-  aurral:
-    image: hadenhiles/aurral:latest
-    container_name: aurral
-    ports: [ "3131:3001" ]
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-      - DOWNLOAD_FOLDER=${MEDIA_BASE}/music-downloads
-      - TRUST_PROXY=true
-    volumes:
-      - "${CONFIG_BASE}/aurral:/app/backend/data"
-      - "${MEDIA_BASE}/music:/app/downloads"
-    depends_on: [ lidarr ]
-    restart: unless-stopped
-    networks:
-      - media_net
+  # aurral:
+  #   image: hadenhiles/aurral:latest
+  #   container_name: aurral
+  #   ports: [ "3131:3001" ]
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - TZ=${TZ}
+  #     - DOWNLOAD_FOLDER=${MEDIA_BASE}/music-downloads
+  #     - TRUST_PROXY=true
+  #   volumes:
+  #     - "${CONFIG_BASE}/aurral:/app/backend/data"
+  #     - "${MEDIA_BASE}/music:/app/downloads"
+  #   depends_on: [ lidarr ]
+  #   restart: unless-stopped
+  #   networks:
+  #     - media_net
 
   arr-retry:
     image: python:3.12-slim
@@ -292,27 +293,29 @@ services:
     networks:
       - media_net
 
-  watchwarden:
-    image: hadenhiles/watchwarden:latest
-    container_name: watchwarden
-    ports:
-      - "3232:3000"
-      - "4000:4000"
-    environment:
-      - POSTGRES_PASSWORD=${WATCHWARDEN_POSTGRES_PASSWORD}
-      - SESSION_SECRET=${WATCHWARDEN_SESSION_SECRET}
-      - API_SECRET=${WATCHWARDEN_API_SECRET}
-      - NEXTAUTH_SECRET=${WATCHWARDEN_NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=${WATCHWARDEN_URL:-http://localhost:3232}
-      - ADMIN_USERNAME=${WATCHWARDEN_ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD_HASH=${WATCHWARDEN_ADMIN_PASSWORD_HASH}
-    volumes:
-      - "${CONFIG_BASE}/watchwarden/db:/var/lib/postgresql/data"
-      - "${CONFIG_BASE}/watchwarden/exports:/app/exports"
-      - "${CONFIG_BASE}/watchwarden/entrypoint.sh:/entrypoint.sh:ro"
-    restart: unless-stopped
-    networks:
-      - media_net
+  # watchwarden:
+  #   image: hadenhiles/watchwarden:latest
+  #   container_name: watchwarden
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -f http://localhost:4000/health || exit 1"]
+  #   ports:
+  #     - "3232:3000"
+  #     - "4000:4000"
+  #   environment:
+  #     - POSTGRES_PASSWORD=${WATCHWARDEN_POSTGRES_PASSWORD}
+  #     - SESSION_SECRET=${WATCHWARDEN_SESSION_SECRET}
+  #     - API_SECRET=${WATCHWARDEN_API_SECRET}
+  #     - NEXTAUTH_SECRET=${WATCHWARDEN_NEXTAUTH_SECRET}
+  #     - NEXTAUTH_URL=${WATCHWARDEN_URL:-http://localhost:3232}
+  #     - ADMIN_USERNAME=${WATCHWARDEN_ADMIN_USERNAME:-admin}
+  #     - ADMIN_PASSWORD_HASH=${WATCHWARDEN_ADMIN_PASSWORD_HASH}
+  #   volumes:
+  #     - "${CONFIG_BASE}/watchwarden/db:/var/lib/postgresql/data"
+  #     - "${CONFIG_BASE}/watchwarden/exports:/app/exports"
+  #     - "${CONFIG_BASE}/watchwarden/entrypoint.sh:/entrypoint.sh:ro"
+  #   restart: unless-stopped
+  #   networks:
+  #     - media_net
 
   cloudflare-ddns:
     image: oznu/cloudflare-ddns:latest
