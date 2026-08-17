@@ -79,6 +79,10 @@ def iso_to_dt(s: str) -> datetime:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
+def is_duplicate_nzb_failure(data):
+    return data.get("message", "").strip().lower() == "duplicate nzb"
+
+
 def is_sonarr_failure(rec):
     """
     Sonarr failure conditions:
@@ -88,6 +92,9 @@ def is_sonarr_failure(rec):
 
     event = rec.get("eventType", "")
     data = rec.get("data", {})
+
+    if is_duplicate_nzb_failure(data):
+        return False
 
     # Primary failure condition
     if event == "downloadFailed":
@@ -116,6 +123,9 @@ def is_radarr_failure(rec):
 
     event = rec.get("eventType", "")
     data = rec.get("data", {})
+
+    if is_duplicate_nzb_failure(data):
+        return False
 
     if event == "downloadFailed":
         return True
