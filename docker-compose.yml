@@ -58,6 +58,7 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${QBIT_DOWNLOAD_BASE}/complete:/downloads/complete"
       - "${QBIT_DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     restart: unless-stopped
     # Note: network inherited from pia (network_mode)
 
@@ -107,6 +108,7 @@ services:
       - "${CONFIG_BASE}/sabnzbd:/config"
       - "${MEDIA_BASE}:/media"
       - "${SAB_DOWNLOAD_BASE}:/downloads"
+      - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     restart: unless-stopped
     networks:
       - media_net
@@ -138,6 +140,7 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${QBIT_DOWNLOAD_BASE}:/downloads"
       - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+      - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks:
@@ -156,6 +159,7 @@ services:
       - "${MEDIA_BASE}:/media"
       - "${QBIT_DOWNLOAD_BASE}:/downloads"
       - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+      - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     depends_on: [ prowlarr ]
     restart: unless-stopped
     networks:
@@ -260,6 +264,7 @@ services:
     volumes:
       - "${CONFIG_BASE}/bazarr:/config"
       - "${MEDIA_BASE}:/media"
+      - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     ports: [ "6767:6767" ]
     restart: unless-stopped
     networks:
