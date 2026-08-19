@@ -213,6 +213,7 @@ services:
       RADARR_API_KEY: "${RADARR_API_KEY}"
       LOOP_INTERVAL: "900"
       LOOKBACK_HOURS: "24"
+      MISSING_SEARCH_INTERVAL: "3600"
     volumes:
       - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
       - "${STACK_BASE}/arr-retry:/state"
