@@ -209,14 +209,25 @@ services:
     environment:
       SONARR_URL: "http://sonarr:8989"
       RADARR_URL: "http://radarr:7878"
+      SAB_URL: "http://sabnzbd:8081"
       SONARR_API_KEY: "${SONARR_API_KEY}"
       RADARR_API_KEY: "${RADARR_API_KEY}"
-      LOOP_INTERVAL: "900"
+      SAB_API_KEY_FILE: "/sabnzbd.ini"
+      LOOP_INTERVAL: "120"
       LOOKBACK_HOURS: "24"
-      MISSING_SEARCH_INTERVAL: "3600"
+      MISSING_MIN_INTERVAL: "120"
+      MISSING_IDLE_RECHECK_INTERVAL: "300"
+      MISSING_MAX_BATCH: "6"
+      MISSING_DEFAULT_BATCH: "2"
+      SAB_MIN_QUEUE_ITEMS: "8"
+      SAB_MIN_QUEUE_MB: "30000"
+      SAB_ESTIMATED_MB_PER_GRAB: "8000"
+      SONARR_MISSING_WEIGHT: "2"
+      RADARR_MISSING_WEIGHT: "1"
     volumes:
       - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
       - "${STACK_BASE}/arr-retry:/state"
+      - "${CONFIG_BASE}/sabnzbd/sabnzbd.ini:/sabnzbd.ini:ro"
     networks:
       - media_net
 

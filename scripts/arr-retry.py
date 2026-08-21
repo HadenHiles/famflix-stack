@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import json
+import math
 import os
 import time
 from datetime import datetime, timedelta, timezone
-from urllib import request, parse, error
+from urllib import parse, request
 
 # -------------------------------------------------------------------
 # CONFIG
@@ -13,11 +14,40 @@ STATE_FILE = os.path.join(STATE_DIR, "state.json")
 
 SONARR_URL = os.environ.get("SONARR_URL", "http://sonarr:8989")
 RADARR_URL = os.environ.get("RADARR_URL", "http://radarr:7878")
+SAB_URL = os.environ.get("SAB_URL", "http://sabnzbd:8081")
 SONARR_API_KEY = os.environ.get("SONARR_API_KEY", "")
 RADARR_API_KEY = os.environ.get("RADARR_API_KEY", "")
-LOOP_INTERVAL = int(os.environ.get("LOOP_INTERVAL", "900"))
+SAB_API_KEY = os.environ.get("SAB_API_KEY", "").strip()
+SAB_API_KEY_FILE = os.environ.get("SAB_API_KEY_FILE", "/sabnzbd.ini")
+LOOP_INTERVAL = int(os.environ.get("LOOP_INTERVAL", "120"))
 LOOKBACK_HOURS = int(os.environ.get("LOOKBACK_HOURS", "24"))
-MISSING_SEARCH_INTERVAL = int(os.environ.get("MISSING_SEARCH_INTERVAL", "3600"))
+MISSING_MIN_INTERVAL = int(os.environ.get("MISSING_MIN_INTERVAL", "120"))
+MISSING_IDLE_RECHECK_INTERVAL = int(os.environ.get("MISSING_IDLE_RECHECK_INTERVAL", "300"))
+MISSING_MAX_BATCH = int(os.environ.get("MISSING_MAX_BATCH", "6"))
+MISSING_DEFAULT_BATCH = int(os.environ.get("MISSING_DEFAULT_BATCH", "2"))
+SAB_MIN_QUEUE_ITEMS = int(os.environ.get("SAB_MIN_QUEUE_ITEMS", "8"))
+SAB_MIN_QUEUE_MB = int(os.environ.get("SAB_MIN_QUEUE_MB", "30000"))
+SAB_ESTIMATED_MB_PER_GRAB = int(os.environ.get("SAB_ESTIMATED_MB_PER_GRAB", "8000"))
+SONARR_MISSING_WEIGHT = int(os.environ.get("SONARR_MISSING_WEIGHT", "2"))
+RADARR_MISSING_WEIGHT = int(os.environ.get("RADARR_MISSING_WEIGHT", "1"))
+
+
+def load_sab_api_key_from_file(path):
+    try:
+        if not path or not os.path.exists(path):
+            return ""
+        with open(path, "r") as f:
+            for line in f:
+                if line.lower().startswith("api_key"):
+                    _, _, value = line.partition("=")
+                    return value.strip()
+    except Exception:
+        pass
+    return ""
+
+
+if not SAB_API_KEY:
+    SAB_API_KEY = load_sab_api_key_from_file(SAB_API_KEY_FILE)
 
 # -------------------------------------------------------------------
 # STATE HELPERS
@@ -32,6 +62,7 @@ def load_state():
             "radarr_missing_processed": [],
             "sonarr_missing_next_search": 0,
             "radarr_missing_next_search": 0,
+            "missing_backfill_next_search": 0,
         }
     try:
         with open(STATE_FILE, "r") as f:
@@ -44,6 +75,7 @@ def load_state():
             "radarr_missing_processed": [],
             "sonarr_missing_next_search": 0,
             "radarr_missing_next_search": 0,
+            "missing_backfill_next_search": 0,
         }
 
 
@@ -87,11 +119,38 @@ def api_post(base_url, api_key, path, payload=None):
         except:
             return None
 
+
+def sab_api_get(mode, extra_params=None):
+    if not SAB_API_KEY:
+        return None
+
+    params = {"mode": mode, "output": "json", "apikey": SAB_API_KEY}
+    if extra_params:
+        params.update(extra_params)
+
+    qs = parse.urlencode(params)
+    url = f"{SAB_URL}/api?{qs}"
+    req = request.Request(url)
+    with request.urlopen(req, timeout=20) as resp:
+        return json.load(resp)
+
 # -------------------------------------------------------------------
 # PARSING HELPERS
 # -------------------------------------------------------------------
 def iso_to_dt(s: str) -> datetime:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def parse_float(value, fallback=0.0):
+    try:
+        if value is None:
+            return fallback
+        if isinstance(value, (int, float)):
+            return float(value)
+        cleaned = "".join(ch for ch in str(value) if ch.isdigit() or ch in ".-")
+        return float(cleaned) if cleaned else fallback
+    except Exception:
+        return fallback
 
 
 def is_duplicate_nzb_failure(data):
@@ -297,33 +356,25 @@ def handle_radarr_failures(state):
 
 
 # -------------------------------------------------------------------
-# WANTED MISSING HANDLERS
+# WANTED-MISSING BACKFILL HANDLERS
 # -------------------------------------------------------------------
-def handle_wanted_missing(state, name, base_url, api_key, endpoint, command_name,
-                          item_key, processed_key, next_search_key):
-    if not api_key or time.time() < state.get(next_search_key, 0):
-        return
+def fetch_wanted_missing_records(base_url, api_key, endpoint):
+    page_size = 1000
+    first_page = api_get(
+        base_url,
+        api_key,
+        endpoint,
+        {
+            "page": 1,
+            "pageSize": page_size,
+            "sortKey": "airDateUtc",
+            "sortDirection": "ascending",
+        },
+    )
 
-    try:
-        page_size = 1000
-        missing = api_get(
-            base_url,
-            api_key,
-            endpoint,
-            {
-                "page": 1,
-                "pageSize": page_size,
-                "sortKey": "airDateUtc",
-                "sortDirection": "ascending",
-            },
-        )
-    except Exception as e:
-        print(f"[{name}] Wanted-missing fetch error: {e}")
-        return
+    records = first_page.get("records", [])
+    page_count = (first_page.get("totalRecords", 0) + page_size - 1) // page_size
 
-    processed = set(state.get(processed_key, []))
-    records = missing.get("records", [])
-    page_count = (missing.get("totalRecords", 0) + page_size - 1) // page_size
     for page in range(2, page_count + 1):
         next_page = api_get(
             base_url,
@@ -337,29 +388,144 @@ def handle_wanted_missing(state, name, base_url, api_key, endpoint, command_name
             },
         )
         records.extend(next_page.get("records", []))
-    item = next((record for record in records if record.get("id") not in processed), None)
 
-    if item is None:
-        print(f"[{name}] No untried wanted-missing items")
-        state[processed_key] = []
-        state[next_search_key] = time.time() + MISSING_SEARCH_INTERVAL
-        return
+    return records
 
-    item_id = item["id"]
-    print(f"[{name}] Triggering {command_name} for wanted-missing item {item_id}")
+
+def trigger_wanted_missing_batch(state, name, base_url, api_key, endpoint,
+                                 command_name, item_key, processed_key, max_searches):
+    if not api_key or max_searches <= 0:
+        return 0
 
     try:
-        api_post(base_url, api_key, "/command", {"name": command_name, item_key: [item_id]})
+        records = fetch_wanted_missing_records(base_url, api_key, endpoint)
     except Exception as e:
-        print(f"[{name}] Wanted-missing search error: {e}")
+        print(f"[{name}] Wanted-missing fetch error: {e}")
+        return 0
+
+    if not records:
+        print(f"[{name}] No wanted-missing items")
+        state[processed_key] = []
+        return 0
+
+    processed = set(state.get(processed_key, []))
+    pending = [record for record in records if record.get("id") not in processed]
+
+    if not pending:
+        print(f"[{name}] Wanted-missing list exhausted, cycling back through list")
+        processed = set()
+        pending = records
+
+    triggered = 0
+    for record in pending:
+        item_id = record.get("id")
+        if not item_id:
+            continue
+
+        print(f"[{name}] Triggering {command_name} for wanted-missing item {item_id}")
+        try:
+            api_post(base_url, api_key, "/command", {"name": command_name, item_key: [item_id]})
+        except Exception as e:
+            print(f"[{name}] Wanted-missing search error for {item_id}: {e}")
+            continue
+
+        processed.add(item_id)
+        triggered += 1
+        if triggered >= max_searches:
+            break
+
+    state[processed_key] = list(processed)[-2000:]
+    return triggered
+
+
+def get_sab_queue_snapshot():
+    if not SAB_API_KEY:
+        return None
+
+    try:
+        queue = (sab_api_get("queue") or {}).get("queue", {})
+    except Exception as e:
+        print(f"[Backfill] SAB queue fetch error: {e}")
+        return None
+
+    slots = queue.get("slots", []) or []
+    return {
+        "item_count": len(slots),
+        "mbleft": parse_float(queue.get("mbleft"), 0.0),
+    }
+
+
+def calculate_missing_backfill_budget(state):
+    now = time.time()
+    if now < state.get("missing_backfill_next_search", 0):
+        return 0
+
+    snapshot = get_sab_queue_snapshot()
+
+    if snapshot is None:
+        budget = max(0, min(MISSING_MAX_BATCH, MISSING_DEFAULT_BATCH))
+        state["missing_backfill_next_search"] = now + MISSING_MIN_INTERVAL
+        print(
+            "[Backfill] SAB queue visibility unavailable, "
+            f"triggering fallback batch size={budget}"
+        )
+        return budget
+
+    queue_items = snapshot["item_count"]
+    queue_mb = snapshot["mbleft"]
+
+    items_needed = max(0, SAB_MIN_QUEUE_ITEMS - queue_items)
+    mb_needed = max(0.0, float(SAB_MIN_QUEUE_MB) - queue_mb)
+    grabs_needed_by_size = int(math.ceil(mb_needed / max(1, SAB_ESTIMATED_MB_PER_GRAB)))
+
+    budget = max(items_needed, grabs_needed_by_size)
+    budget = max(0, min(MISSING_MAX_BATCH, budget))
+
+    next_check = MISSING_MIN_INTERVAL if budget > 0 else MISSING_IDLE_RECHECK_INTERVAL
+    state["missing_backfill_next_search"] = now + next_check
+
+    print(
+        f"[Backfill] SAB queue: items={queue_items}, mbleft={queue_mb:.0f}, "
+        f"budget={budget}, next_check={next_check}s"
+    )
+    return budget
+
+
+def split_backfill_budget(total_budget):
+    if total_budget <= 0:
+        return 0, 0
+
+    sonarr_enabled = bool(SONARR_API_KEY)
+    radarr_enabled = bool(RADARR_API_KEY)
+
+    if sonarr_enabled and not radarr_enabled:
+        return total_budget, 0
+    if radarr_enabled and not sonarr_enabled:
+        return 0, total_budget
+    if not sonarr_enabled and not radarr_enabled:
+        return 0, 0
+
+    total_weight = max(1, SONARR_MISSING_WEIGHT + RADARR_MISSING_WEIGHT)
+    sonarr_budget = int(round(total_budget * SONARR_MISSING_WEIGHT / total_weight))
+    sonarr_budget = max(1 if SONARR_MISSING_WEIGHT > 0 else 0, sonarr_budget)
+    sonarr_budget = min(total_budget, sonarr_budget)
+    radarr_budget = total_budget - sonarr_budget
+
+    if RADARR_MISSING_WEIGHT > 0 and radarr_budget == 0 and total_budget > 1:
+        radarr_budget = 1
+        sonarr_budget = total_budget - 1
+
+    return sonarr_budget, radarr_budget
+
+
+def handle_missing_backfill(state):
+    budget = calculate_missing_backfill_budget(state)
+    if budget <= 0:
         return
 
-    state[processed_key] = (list(processed) + [item_id])[-2000:]
-    state[next_search_key] = time.time() + MISSING_SEARCH_INTERVAL
+    sonarr_budget, radarr_budget = split_backfill_budget(budget)
 
-
-def handle_sonarr_wanted_missing(state):
-    handle_wanted_missing(
+    sonarr_triggered = trigger_wanted_missing_batch(
         state,
         "Sonarr",
         SONARR_URL,
@@ -368,12 +534,10 @@ def handle_sonarr_wanted_missing(state):
         "EpisodeSearch",
         "episodeIds",
         "sonarr_missing_processed",
-        "sonarr_missing_next_search",
+        sonarr_budget,
     )
 
-
-def handle_radarr_wanted_missing(state):
-    handle_wanted_missing(
+    radarr_triggered = trigger_wanted_missing_batch(
         state,
         "Radarr",
         RADARR_URL,
@@ -382,7 +546,41 @@ def handle_radarr_wanted_missing(state):
         "MoviesSearch",
         "movieIds",
         "radarr_missing_processed",
-        "radarr_missing_next_search",
+        radarr_budget,
+    )
+
+    remaining = budget - sonarr_triggered - radarr_triggered
+    if remaining > 0:
+        # Reuse leftover budget with whichever service still has candidates.
+        sonarr_triggered += trigger_wanted_missing_batch(
+            state,
+            "Sonarr",
+            SONARR_URL,
+            SONARR_API_KEY,
+            "/wanted/missing",
+            "EpisodeSearch",
+            "episodeIds",
+            "sonarr_missing_processed",
+            remaining,
+        )
+        remaining = budget - sonarr_triggered - radarr_triggered
+
+    if remaining > 0:
+        radarr_triggered += trigger_wanted_missing_batch(
+            state,
+            "Radarr",
+            RADARR_URL,
+            RADARR_API_KEY,
+            "/wanted/missing",
+            "MoviesSearch",
+            "movieIds",
+            "radarr_missing_processed",
+            remaining,
+        )
+
+    print(
+        f"[Backfill] Triggered searches: sonarr={sonarr_triggered}, "
+        f"radarr={radarr_triggered}, total={sonarr_triggered + radarr_triggered}"
     )
 
 # -------------------------------------------------------------------
@@ -393,15 +591,15 @@ def main_loop():
     print("arr-retry started; watching for failed downloads...")
     print(
         f"Loop interval: {LOOP_INTERVAL}s, lookback: {LOOKBACK_HOURS}h, "
-        f"wanted-missing interval: {MISSING_SEARCH_INTERVAL}s"
+        f"missing min interval: {MISSING_MIN_INTERVAL}s, "
+        f"missing max batch: {MISSING_MAX_BATCH}"
     )
 
     while True:
         try:
             handle_sonarr_failures(state)
             handle_radarr_failures(state)
-            handle_sonarr_wanted_missing(state)
-            handle_radarr_wanted_missing(state)
+            handle_missing_backfill(state)
             save_state(state)
         except Exception as e:
             print(f"[Main] Unexpected error: {e}")
