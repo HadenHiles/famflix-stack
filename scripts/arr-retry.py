@@ -25,6 +25,9 @@ MISSING_MIN_INTERVAL = int(os.environ.get("MISSING_MIN_INTERVAL", "120"))
 MISSING_IDLE_RECHECK_INTERVAL = int(os.environ.get("MISSING_IDLE_RECHECK_INTERVAL", "300"))
 MISSING_MAX_BATCH = int(os.environ.get("MISSING_MAX_BATCH", "6"))
 MISSING_DEFAULT_BATCH = int(os.environ.get("MISSING_DEFAULT_BATCH", "2"))
+# 0 = no extra cap beyond queue-derived budget/MISSING_MAX_BATCH.
+BACKFILL_MAX_SEARCHES_PER_LOOP = int(os.environ.get("BACKFILL_MAX_SEARCHES_PER_LOOP", "0"))
+MISSING_RECYCLE_COOLDOWN = int(os.environ.get("MISSING_RECYCLE_COOLDOWN", "1800"))
 SAB_MIN_QUEUE_ITEMS = int(os.environ.get("SAB_MIN_QUEUE_ITEMS", "8"))
 SAB_MIN_QUEUE_MB = int(os.environ.get("SAB_MIN_QUEUE_MB", "30000"))
 SAB_ESTIMATED_MB_PER_GRAB = int(os.environ.get("SAB_ESTIMATED_MB_PER_GRAB", "8000"))
@@ -63,6 +66,7 @@ def load_state():
             "sonarr_missing_next_search": 0,
             "radarr_missing_next_search": 0,
             "missing_backfill_next_search": 0,
+            "missing_recycle_after": {},
         }
     try:
         with open(STATE_FILE, "r") as f:
@@ -76,6 +80,7 @@ def load_state():
             "sonarr_missing_next_search": 0,
             "radarr_missing_next_search": 0,
             "missing_backfill_next_search": 0,
+            "missing_recycle_after": {},
         }
 
 
@@ -412,9 +417,26 @@ def trigger_wanted_missing_batch(state, name, base_url, api_key, endpoint,
     pending = [record for record in records if record.get("id") not in processed]
 
     if not pending:
-        print(f"[{name}] Wanted-missing list exhausted, cycling back through list")
+        recycle_key = f"{processed_key}:recycle_after"
+        recycle_after = (state.get("missing_recycle_after", {}) or {}).get(recycle_key, 0)
+        now = time.time()
+        if now < recycle_after:
+            wait_s = int(recycle_after - now)
+            print(
+                f"[{name}] Wanted-missing list exhausted; waiting {wait_s}s "
+                "before cycling list"
+            )
+            return 0
+
+        print(
+            f"[{name}] Wanted-missing list exhausted, cycling back through list "
+            f"(cooldown {MISSING_RECYCLE_COOLDOWN}s)"
+        )
         processed = set()
         pending = records
+        recycle_state = state.get("missing_recycle_after", {}) or {}
+        recycle_state[recycle_key] = now + max(0, MISSING_RECYCLE_COOLDOWN)
+        state["missing_recycle_after"] = recycle_state
 
     triggered = 0
     for record in pending:
@@ -522,6 +544,9 @@ def handle_missing_backfill(state):
     budget = calculate_missing_backfill_budget(state)
     if budget <= 0:
         return
+
+    if BACKFILL_MAX_SEARCHES_PER_LOOP > 0:
+        budget = min(budget, BACKFILL_MAX_SEARCHES_PER_LOOP)
 
     sonarr_budget, radarr_budget = split_backfill_budget(budget)
 
