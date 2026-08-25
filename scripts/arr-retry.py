@@ -21,6 +21,8 @@ SAB_API_KEY = os.environ.get("SAB_API_KEY", "").strip()
 SAB_API_KEY_FILE = os.environ.get("SAB_API_KEY_FILE", "/sabnzbd.ini")
 LOOP_INTERVAL = int(os.environ.get("LOOP_INTERVAL", "120"))
 LOOKBACK_HOURS = int(os.environ.get("LOOKBACK_HOURS", "24"))
+FAILURE_RETRY_COOLDOWN = int(os.environ.get("FAILURE_RETRY_COOLDOWN", "1800"))
+ITEM_SEARCH_COOLDOWN = int(os.environ.get("ITEM_SEARCH_COOLDOWN", "1800"))
 MISSING_MIN_INTERVAL = int(os.environ.get("MISSING_MIN_INTERVAL", "120"))
 MISSING_IDLE_RECHECK_INTERVAL = int(os.environ.get("MISSING_IDLE_RECHECK_INTERVAL", "300"))
 MISSING_MAX_BATCH = int(os.environ.get("MISSING_MAX_BATCH", "6"))
@@ -67,6 +69,8 @@ def load_state():
             "radarr_missing_next_search": 0,
             "missing_backfill_next_search": 0,
             "missing_recycle_after": {},
+            "episode_search_retry_after": {},
+            "movie_search_retry_after": {},
         }
     try:
         with open(STATE_FILE, "r") as f:
@@ -81,7 +85,20 @@ def load_state():
             "radarr_missing_next_search": 0,
             "missing_backfill_next_search": 0,
             "missing_recycle_after": {},
+            "episode_search_retry_after": {},
+            "movie_search_retry_after": {},
         }
+
+
+def can_trigger_item_search(state, retry_key, item_id, cooldown_seconds):
+    now = time.time()
+    retry_after = state.get(retry_key, {}) or {}
+    cooldown_until = float(retry_after.get(str(item_id), 0))
+    if now < cooldown_until:
+        return False
+    retry_after[str(item_id)] = now + max(0, cooldown_seconds)
+    state[retry_key] = retry_after
+    return True
 
 
 def save_state(state):
@@ -274,6 +291,15 @@ def handle_sonarr_failures(state):
         if not episode_id:
             continue
 
+        if not can_trigger_item_search(
+            state,
+            "episode_search_retry_after",
+            episode_id,
+            FAILURE_RETRY_COOLDOWN,
+        ):
+            new_processed.append(rec_id)
+            continue
+
         print(f"[Sonarr] Triggering EpisodeSearch for ep {episode_id}")
 
         try:
@@ -341,6 +367,15 @@ def handle_radarr_failures(state):
 
         movie_id = rec.get("movieId")
         if not movie_id:
+            continue
+
+        if not can_trigger_item_search(
+            state,
+            "movie_search_retry_after",
+            movie_id,
+            FAILURE_RETRY_COOLDOWN,
+        ):
+            new_processed.append(rec_id)
             continue
 
         print(f"[Radarr] Triggering MoviesSearch for movie {movie_id}")
@@ -439,9 +474,13 @@ def trigger_wanted_missing_batch(state, name, base_url, api_key, endpoint,
         state["missing_recycle_after"] = recycle_state
 
     triggered = 0
+    retry_key = "episode_search_retry_after" if item_key == "episodeIds" else "movie_search_retry_after"
     for record in pending:
         item_id = record.get("id")
         if not item_id:
+            continue
+
+        if not can_trigger_item_search(state, retry_key, item_id, ITEM_SEARCH_COOLDOWN):
             continue
 
         print(f"[{name}] Triggering {command_name} for wanted-missing item {item_id}")
