@@ -90,6 +90,7 @@ services:
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
+      - UMASK=002
       - TZ=${TZ}
       - SABNZBD__HOST=0.0.0.0
       - SABNZBD__INET_EXPOSURE=2
