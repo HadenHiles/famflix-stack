@@ -23,6 +23,7 @@ LOOP_INTERVAL = int(os.environ.get("LOOP_INTERVAL", "120"))
 LOOKBACK_HOURS = int(os.environ.get("LOOKBACK_HOURS", "24"))
 FAILURE_RETRY_COOLDOWN = int(os.environ.get("FAILURE_RETRY_COOLDOWN", "1800"))
 ITEM_SEARCH_COOLDOWN = int(os.environ.get("ITEM_SEARCH_COOLDOWN", "1800"))
+MAX_PENDING_COMMANDS = max(1, int(os.environ.get("MAX_PENDING_COMMANDS", "2")))
 MISSING_MIN_INTERVAL = int(os.environ.get("MISSING_MIN_INTERVAL", "120"))
 MISSING_IDLE_RECHECK_INTERVAL = int(os.environ.get("MISSING_IDLE_RECHECK_INTERVAL", "300"))
 MISSING_MAX_BATCH = int(os.environ.get("MISSING_MAX_BATCH", "6"))
@@ -35,6 +36,10 @@ SAB_MIN_QUEUE_MB = int(os.environ.get("SAB_MIN_QUEUE_MB", "30000"))
 SAB_ESTIMATED_MB_PER_GRAB = int(os.environ.get("SAB_ESTIMATED_MB_PER_GRAB", "8000"))
 SONARR_MISSING_WEIGHT = int(os.environ.get("SONARR_MISSING_WEIGHT", "2"))
 RADARR_MISSING_WEIGHT = int(os.environ.get("RADARR_MISSING_WEIGHT", "1"))
+
+
+class SearchDeferred(RuntimeError):
+    pass
 
 
 def load_sab_api_key_from_file(path):
@@ -123,6 +128,12 @@ def api_get(base_url, api_key, path, params=None):
 
 
 def api_post(base_url, api_key, path, payload=None):
+    if path == "/command" and (payload or {}).get("name") in ("EpisodeSearch", "MoviesSearch"):
+        commands = api_get(base_url, api_key, "/command")
+        pending = sum(command.get("status") in ("queued", "started") for command in commands)
+        if pending >= MAX_PENDING_COMMANDS:
+            raise SearchDeferred(f"Search deferred: {pending} commands already pending")
+
     data = b"" if payload is None else json.dumps(payload).encode("utf-8")
     url = f"{base_url}/api/v3{path}"
 
@@ -309,6 +320,10 @@ def handle_sonarr_failures(state):
                 "/command",
                 {"name": "EpisodeSearch", "episodeIds": [episode_id]},
             )
+        except SearchDeferred as e:
+            state.get("episode_search_retry_after", {}).pop(str(episode_id), None)
+            print(f"[Sonarr] {e}")
+            break
         except Exception as e:
             print(f"[Sonarr] EpisodeSearch error: {e}")
 
@@ -387,6 +402,10 @@ def handle_radarr_failures(state):
                 "/command",
                 {"name": "MoviesSearch", "movieIds": [movie_id]},
             )
+        except SearchDeferred as e:
+            state.get("movie_search_retry_after", {}).pop(str(movie_id), None)
+            print(f"[Radarr] {e}")
+            break
         except Exception as e:
             print(f"[Radarr] MoviesSearch error: {e}")
 
@@ -486,6 +505,10 @@ def trigger_wanted_missing_batch(state, name, base_url, api_key, endpoint,
         print(f"[{name}] Triggering {command_name} for wanted-missing item {item_id}")
         try:
             api_post(base_url, api_key, "/command", {"name": command_name, item_key: [item_id]})
+        except SearchDeferred as e:
+            state.get(retry_key, {}).pop(str(item_id), None)
+            print(f"[{name}] {e}")
+            break
         except Exception as e:
             print(f"[{name}] Wanted-missing search error for {item_id}: {e}")
             continue
