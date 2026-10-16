@@ -202,40 +202,6 @@ services:
   #   networks:
   #     - media_net
 
-  arr-retry:
-    image: python:3.12-slim
-    container_name: arr-retry
-    restart: unless-stopped
-    entrypoint: [ "python3", "-u", "/scripts/arr-retry.py" ]
-    environment:
-      SONARR_URL: "http://sonarr:8989"
-      RADARR_URL: "http://radarr:7878"
-      SAB_URL: "http://sabnzbd:8081"
-      SONARR_API_KEY: "${SONARR_API_KEY}"
-      RADARR_API_KEY: "${RADARR_API_KEY}"
-      SAB_API_KEY_FILE: "/sabnzbd.ini"
-      LOOP_INTERVAL: "120"
-      LOOKBACK_HOURS: "24"
-      FAILURE_RETRY_COOLDOWN: "1800"
-      ITEM_SEARCH_COOLDOWN: "1800"
-      MISSING_MIN_INTERVAL: "120"
-      MISSING_IDLE_RECHECK_INTERVAL: "300"
-      MISSING_MAX_BATCH: "6"
-      MISSING_DEFAULT_BATCH: "2"
-      BACKFILL_MAX_SEARCHES_PER_LOOP: "0"
-      MISSING_RECYCLE_COOLDOWN: "1800"
-      SAB_MIN_QUEUE_ITEMS: "8"
-      SAB_MIN_QUEUE_MB: "30000"
-      SAB_ESTIMATED_MB_PER_GRAB: "8000"
-      SONARR_MISSING_WEIGHT: "2"
-      RADARR_MISSING_WEIGHT: "1"
-    volumes:
-      - "${STACK_BASE}/scripts/arr-retry.py:/scripts/arr-retry.py:ro"
-      - "${STACK_BASE}/arr-retry:/state"
-      - "${CONFIG_BASE}/sabnzbd/sabnzbd.ini:/sabnzbd.ini:ro"
-    networks:
-      - media_net
-
   unmanic:
     image: josh5/unmanic:latest
     container_name: unmanic
