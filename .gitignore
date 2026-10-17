@@ -16,6 +16,8 @@ caddy/env
 !scripts/stack-scripts/*
 !scripts/custom-cont-init
 !scripts/custom-cont-init/*
+!tests
+!tests/test_pia_port_sync.py
 !configs
 !configs/seedlink
 !configs/seedlink/scripts
