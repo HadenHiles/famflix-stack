@@ -280,6 +280,9 @@ services:
     volumes:
       - "${CONFIG_BASE}/reclaimerr:/app/data"
       - "${MEDIA_BASE}:/media"
+      # Match Radarr paths so upgrade-leftover scans can inspect old downloads.
+      - "${QBIT_DOWNLOAD_BASE}:/downloads"
+      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
     restart: unless-stopped
     networks:
       - media_net
