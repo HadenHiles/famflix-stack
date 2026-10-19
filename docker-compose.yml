@@ -276,7 +276,9 @@ services:
       - PGID=${PGID}
       - UMASK=002
       - TZ=${TZ}
-      - COOKIE_SECURE=true
+      # LAN HTTP login requires cookies that are not HTTPS-only.
+      - COOKIE_SECURE=false
+    ports: [ "8000:8000" ]
     volumes:
       - "${CONFIG_BASE}/reclaimerr:/app/data"
       - "${MEDIA_BASE}:/media"
