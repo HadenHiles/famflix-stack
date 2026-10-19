@@ -268,15 +268,18 @@ services:
     networks:
       - media_net
 
-  maintainerr:
-    image: ghcr.io/jorenn92/maintainerr:main
-    container_name: maintainerr
-    user: "${PUID}:${PGID}"
+  reclaimerr:
+    image: ghcr.io/jessielw/reclaimerr:latest
+    container_name: reclaimerr
     environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - UMASK=002
       - TZ=${TZ}
+      - COOKIE_SECURE=true
     volumes:
-      - "${CONFIG_BASE}/maintainerr:/opt/data"
-    ports: [ "6246:6246" ]
+      - "${CONFIG_BASE}/reclaimerr:/app/data"
+      - "${MEDIA_BASE}:/media"
     restart: unless-stopped
     networks:
       - media_net
