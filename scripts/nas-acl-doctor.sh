@@ -17,11 +17,11 @@ STACK_PATH="${STACK_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # Containers that must be able to write to media/downloads, and the in-container
 # paths they need. Add new services here as the stack grows.
 declare -A TARGETS=(
-    [sonarr]="/media /downloads /downloads-sab"
-    [radarr]="/media /downloads /downloads-sab"
+    [sonarr]="/data"
+    [radarr]="/data"
     [bazarr]="/media"
-    [sabnzbd]="/media /downloads"
-    [qbittorrent]="/downloads/complete /downloads/incomplete"
+    [sabnzbd]="/data"
+    [qbittorrent]="/data/downloads/qbittorrent"
 )
 
 red()  { printf '\033[31m%s\033[0m\n' "$*"; }

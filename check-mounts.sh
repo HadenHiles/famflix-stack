@@ -15,17 +15,17 @@ LIST_DEPTH=2       # How many levels of files/folders to show
 
 declare -A PATHS WRITE
 
-PATHS["qbittorrent"]="/media /downloads/complete /downloads/incomplete /config"
-WRITE["qbittorrent"]="/downloads/complete"
+PATHS["qbittorrent"]="/data /config"
+WRITE["qbittorrent"]="/data/downloads/qbittorrent/complete"
 
-PATHS["sabnzbd"]="/media /downloads/complete /downloads/incomplete /config"
-WRITE["sabnzbd"]="/downloads/complete"
+PATHS["sabnzbd"]="/data /config"
+WRITE["sabnzbd"]="/data/downloads/sab/complete"
 
-PATHS["sonarr"]="/media /downloads/complete /downloads/incomplete /config"
-WRITE["sonarr"]="/downloads/complete"
+PATHS["sonarr"]="/data /config"
+WRITE["sonarr"]="/data/downloads"
 
-PATHS["radarr"]="/media /downloads/complete /downloads/incomplete /config"
-WRITE["radarr"]="/downloads/complete"
+PATHS["radarr"]="/data /config"
+WRITE["radarr"]="/data/downloads"
 
 PATHS["bazarr"]="/media /movies /tv /config"
 WRITE["bazarr"]="/config"

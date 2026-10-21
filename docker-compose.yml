@@ -55,9 +55,7 @@ services:
     volumes:
       - "${CONFIG_BASE}/qbittorrent:/config"
       - "${STACK_BASE}/pia:/pia-shared:ro"
-      - "${MEDIA_BASE}:/media"
-      - "${QBIT_DOWNLOAD_BASE}/complete:/downloads/complete"
-      - "${QBIT_DOWNLOAD_BASE}/incomplete:/downloads/incomplete"
+      - "${DATA_BASE}:/data"
       - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     restart: unless-stopped
     # Note: network inherited from pia (network_mode)
@@ -104,11 +102,10 @@ services:
       - MILKIE_COOKIE=${MILKIE_COOKIE}
       - MAX_PEERS=${MAX_PEERS}
       - STOP_RATIO=${STOP_RATIO}
-      - SAB_COMPLETE_DIR=/downloads/complete
+      - SAB_COMPLETE_DIR=/data/downloads/sab/complete
     volumes:
       - "${CONFIG_BASE}/sabnzbd:/config"
-      - "${MEDIA_BASE}:/media"
-      - "${SAB_DOWNLOAD_BASE}:/downloads"
+      - "${DATA_BASE}:/data"
       - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     restart: unless-stopped
     networks:
@@ -138,9 +135,7 @@ services:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/sonarr:/config"
-      - "${MEDIA_BASE}:/media"
-      - "${QBIT_DOWNLOAD_BASE}:/downloads"
-      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+      - "${DATA_BASE}:/data"
       - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     depends_on: [ prowlarr ]
     restart: unless-stopped
@@ -157,9 +152,7 @@ services:
       - TZ=${TZ}
     volumes:
       - "${CONFIG_BASE}/radarr:/config"
-      - "${MEDIA_BASE}:/media"
-      - "${QBIT_DOWNLOAD_BASE}:/downloads"
-      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+      - "${DATA_BASE}:/data"
       - "${STACK_BASE}/scripts/custom-cont-init:/custom-cont-init.d:ro"
     depends_on: [ prowlarr ]
     restart: unless-stopped
@@ -295,10 +288,8 @@ services:
     ports: [ "8000:8000" ]
     volumes:
       - "${CONFIG_BASE}/reclaimerr:/app/data"
-      - "${MEDIA_BASE}:/media"
-      # Match Radarr paths so upgrade-leftover scans can inspect old downloads.
-      - "${QBIT_DOWNLOAD_BASE}:/downloads"
-      - "${SAB_DOWNLOAD_BASE}:/downloads-sab"
+      # Match Sonarr/Radarr paths (/data/...) so scans line up.
+      - "${DATA_BASE}:/data"
     restart: unless-stopped
     networks:
       - media_net
