@@ -228,11 +228,25 @@ services:
       - TAUTULLI_URL=http://tautulli:8181
       - TAUTULLI_API_KEY=${TAUTULLI_API_KEY}
       - CHECK_INTERVAL=5
-      - COOLDOWN=30
+      - SAB_URL=http://sabnzbd:8081
+      - IO_HIGH=35
+      - IO_LOW=10
+      - IO_SUSTAINED=15
+      - QUIET_SECONDS=120
     volumes:
       - "${STACK_BASE}/scripts/unmanic_watchdog.py:/scripts/unmanic_watchdog.py:ro"
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: [ "sh", "-c", "pip install aiohttp docker && python /scripts/unmanic_watchdog.py" ]
+      - "${CONFIG_BASE}/sonarr/config.xml:/credentials/sonarr.xml:ro"
+      - "${CONFIG_BASE}/radarr/config.xml:/credentials/radarr.xml:ro"
+      - "${CONFIG_BASE}/sabnzbd/sabnzbd.ini:/credentials/sabnzbd.ini:ro"
+      - /proc/pressure:/host-pressure:ro
+      - "${STACK_BASE}/unmanic-watchdog-state:/state"
+    command: [ "python", "/scripts/unmanic_watchdog.py" ]
+    healthcheck:
+      test: [ "CMD", "python", "/scripts/unmanic_watchdog.py", "--health" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
     restart: unless-stopped
     networks:
       - media_net
